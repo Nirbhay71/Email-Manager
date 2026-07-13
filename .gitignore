@@ -1,0 +1,24 @@
+# Node
+node_modules/
+
+# Environment
+demo/calender_reminder/.env
+
+# Google OAuth
+demo/calender_reminder/credentials.json
+demo/calender_reminder/token.json
+
+# Logs
+*.log
+
+# Build
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
