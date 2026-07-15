@@ -21,4 +21,7 @@ build/
 
 # OS
 .DS_Store
-Thumbs.db
+Thumbs.dbcredentials.json
+token.pickle
+__pycache__/
+*.pyc
