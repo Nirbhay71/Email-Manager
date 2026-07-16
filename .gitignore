@@ -25,3 +25,16 @@ Thumbs.dbcredentials.json
 token.pickle
 __pycache__/
 *.pyc
+
+
+
+
+
+# Demo_Notifier
+credentials.json
+token.pickle
+token_calendar_read.pickle
+notified_events.json
+.env
+__pycache__/
+*.pyc
