@@ -1,0 +1,30 @@
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Local configuration & secrets
+.env
+.env.local
+
+# Python cache & build files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Local database and vector stores
+chroma_data/
+*.db
+*.sqlite3
+
+# IDEs, OS, and system files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

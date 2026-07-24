@@ -4,6 +4,8 @@ import { getNewMessagesSince, getMessage } from "../service/gmail.service.js";
 import { extractDate } from "../service/dateExtractor.service.js";
 import { createDeadlineEvent } from "../service/calendar.service.js";
 import { sendTestSms } from "../service/sms.service.js";
+import { embedAndStoreEmail } from "../services/embeddingClient.js";
+
 export const handleGmailWebhook = async (req, res) => {
     try {
         const { message } = req.body;
@@ -40,6 +42,16 @@ export const handleGmailWebhook = async (req, res) => {
                     subject: msg.subject,
                     body: msg.body,
                     detectedDate: isoDate
+                });
+
+                // Fire-and-forget vector embedding call via gRPC to Python service
+                embedAndStoreEmail({
+                    messageId: id,
+                    userEmail: emailAddress,
+                    subject: msg.subject,
+                    body: msg.body
+                }).catch(embedErr => {
+                    console.warn(`[webhook] Vector embedding warning for ${id}: ${embedErr.message}`);
                 });
             } catch (dbErr) {
                 if (dbErr.code === 11000) {

@@ -24,7 +24,7 @@ const emailSchema = new mongoose.Schema({
     },
     body: {
         type: String,
-        required: true
+        default: ""
     },
     detectedDate: {
         type: String,
@@ -38,6 +38,8 @@ const emailSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     }
-}, { timestamps: true })
+}, { timestamps: true });
 
-export const Email = mongoose.model('email', emailSchema)
+emailSchema.index({ subject: "text", body: "text" });
+
+export const Email = mongoose.model('email', emailSchema);
