@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package emailsearch_v2;
+
+// SearchService provides hybrid email search combining structured operators,
+// BM25 keyword search, semantic vector search, and cross-encoder reranking.
+service SearchService {
+  // Unary RPC: executes the full search pipeline and returns ranked results.
+  rpc Search (SearchRequest) returns (SearchResponse);
+
+  // Unary RPC to embed and store an email vector
+  rpc EmbedAndStore (EmbedRequest) returns (EmbedResponse);
+
+  // Server-Streaming RPC to retrieve relevant emails and stream Gemini's answer
+  rpc AskQuestion (AskRequest) returns (stream AskResponseChunk);
+}
+
+// ── Request ────────────────────────────────────────────────────────────────
+
+message SearchRequest {
+  string query = 1;        // Raw search query string
+  string user_email = 2;   // Authenticated user's email
+  int32 limit = 3;         // Max results (default: 20)
+  int32 offset = 4;        // Pagination offset (default: 0)
+}
+
+message EmbedRequest {
+  string message_id = 1;
+  string user_email = 2;
+  string subject = 3;
+  string body = 4;
+}
+
+message AskRequest {
+  string user_email = 1;
+  string question = 2;
+  int32 top_k = 3; // Number of top emails to retrieve (default: 5)
+}
+
+// ── Response ───────────────────────────────────────────────────────────────
+
+message SearchResponse {
+  repeated SearchResult results = 1;
+  int32 total = 2;
+  QueryInterpretation query_interpretation = 3;
+  StageTimings timings = 4;
+  bool degraded = 5;
+  repeated string stages_timed_out = 6;
+}
+
+message SearchResult {
+  string email_id = 1;
+  string subject = 2;
+  string sender = 3;
+  string date = 4;
+  string snippet = 5;
+  ScoreBreakdown scores = 6;
+}
+
+message ScoreBreakdown {
+  float bm25 = 1;
+  float vector = 2;
+  float rerank = 3;
+  float final = 4;
+}
+
+message QueryInterpretation {
+  map<string, string> operators = 1;
+  string free_text = 2;
+  string detected_sender = 3;
+}
+
+message StageTimings {
+  float total_ms = 1;
+  float routing_ms = 2;
+  float metadata_ms = 3;
+  float bm25_ms = 4;
+  float vector_ms = 5;
+  float fusion_ms = 6;
+  float rerank_ms = 7;
+}
+
+message EmbedResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message AskResponseChunk {
+  string text_delta = 1; // Real-time streamed chunk of Gemini's answer
+  bool is_final = 2; // True on the final chunk
+  repeated SourceEmail sources = 3; // Source emails referenced (sent on final chunk)
+}
+
+message SourceEmail {
+  string message_id = 1;
+  string subject = 2;
+  float score = 3;
+}

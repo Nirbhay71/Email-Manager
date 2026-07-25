@@ -1,0 +1,36 @@
+# Node.js
+**/node_modules/
+**/dist/
+**/build/
+.npm/
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+chroma_data/
+chroma_db/
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+
+demo/calender_reminder/.env
+demo/calender_reminder/token.json
+demo/calender_reminder/credentials.json

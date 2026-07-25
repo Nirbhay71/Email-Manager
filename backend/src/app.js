@@ -2,6 +2,7 @@ import express from "express";
 import authRoutes from "./routes/auth.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
 import askRoutes from "./routes/ask.routes.js";
+import searchRoutes from "./routes/search.routes.js";
 
 const app = express();
 
@@ -427,5 +428,6 @@ app.get("/test-ai", (req, res) => {
 app.use("/auth", authRoutes);
 app.use("/webhook", webhookRoutes);
 app.use("/ask", askRoutes);
+app.use("/search", searchRoutes);
 
 export default app;

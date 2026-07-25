@@ -51,7 +51,7 @@ export const googleCallback = async (req, res) => {
         user.historyId = watchResult.historyId;
         await user.save();
 
-        console.log(`[auth] ${email} registered. historyId=${watchResult.historyId}`);
+        console.log(`[auth] ${email} registered. Gmail watch subscription successfully registered! historyId=${watchResult.historyId}`);
 
         res.send(`Logged in as ${email}. Gmail watch is active — send a test email now.`);
 

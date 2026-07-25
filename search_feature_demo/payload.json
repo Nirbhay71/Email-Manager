@@ -1,0 +1,5 @@
+{
+  "query": "emails from Sarah about Q3 budget last week",
+  "user_email": "user@example.com",
+  "limit": 20
+}
