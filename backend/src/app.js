@@ -2,10 +2,27 @@ import express from "express";
 import authRoutes from "./routes/auth.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
 import askRoutes from "./routes/ask.routes.js";
+import categoriesRoutes from "./routes/categories.routes.js";
+import classifyRoutes from "./routes/classify.routes.js";
 
 const app = express();
 
+// Custom CORS middleware to allow the React frontend (running on port 5173) to communicate with this backend
+app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    if (req.method === "OPTIONS") {
+        return res.sendStatus(200);
+    }
+    next();
+});
+
 app.use(express.json());
+
+app.use("/categories", categoriesRoutes);
+app.use("/classify", classifyRoutes);
 
 app.get("/", (req, res) => {
     res.send("AI Email Manager — go to /auth/google to register.");

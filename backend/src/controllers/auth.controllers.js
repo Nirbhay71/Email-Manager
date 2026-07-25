@@ -53,7 +53,8 @@ export const googleCallback = async (req, res) => {
 
         console.log(`[auth] ${email} registered. historyId=${watchResult.historyId}`);
 
-        res.send(`Logged in as ${email}. Gmail watch is active — send a test email now.`);
+        // Redirect user to the React frontend dashboard with their email
+        res.redirect(`http://localhost:5173/?email=${encodeURIComponent(email)}`);
 
 
     } catch (error) {

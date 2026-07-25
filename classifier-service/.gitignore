@@ -1,0 +1,20 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+venv/
+ENV/
+env/
+
+# Database files
+chroma_data_classifier/
+
+# Editor / System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
