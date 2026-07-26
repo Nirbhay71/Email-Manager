@@ -1,12 +1,23 @@
 import express from "express";
+import cors from "cors";
 import authRoutes from "./routes/auth.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
 import askRoutes from "./routes/ask.routes.js";
 import searchRoutes from "./routes/search.routes.js";
+import emailRoutes from "./routes/email.routes.js";
+import categoryRoutes from "./routes/category.routes.js";
+import calendarRoutes from "./routes/calendar.routes.js";
+import chatRoutes from "./routes/chat.routes.js";
 
 const app = express();
 
+app.use(cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,
+}));
+
 app.use(express.json());
+
 
 app.get("/", (req, res) => {
     res.send("AI Email Manager — go to /auth/google to register.");
@@ -429,5 +440,9 @@ app.use("/auth", authRoutes);
 app.use("/webhook", webhookRoutes);
 app.use("/ask", askRoutes);
 app.use("/search", searchRoutes);
+app.use("/emails", emailRoutes);
+app.use("/categories", categoryRoutes);
+app.use("/calendar", calendarRoutes);
+app.use("/chat", chatRoutes);
 
 export default app;

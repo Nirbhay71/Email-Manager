@@ -1,5 +1,6 @@
 import express from "express";
 import { hybridSearchClient } from "../grpc/hybridSearchClient.js";
+import { ChatSession } from "../models/chatSession.model.js";
 
 const router = express.Router();
 
@@ -10,10 +11,10 @@ router.get("/", (req, res) => {
 /**
  * POST /ask
  * Streams answer to user query via Server-Sent Events (SSE)
- * Request body: { question: string, userEmail: string }
+ * Request body: { question: string, userEmail: string, sessionId?: string }
  */
 router.post("/", async(req, res) => {
-    const { question, userEmail } = req.body;
+    const { question, userEmail, sessionId } = req.body;
 
     if (!question || !userEmail) {
         return res.status(400).json({ error: "question and userEmail are required" });
@@ -40,11 +41,37 @@ router.post("/", async(req, res) => {
         top_k: 5
     });
 
+    let fullAiResponse = "";
+    let finalSources = [];
+
     try {
         for await (const chunk of call) {
+            if (chunk.text_delta) {
+                fullAiResponse += chunk.text_delta;
+            }
+            if (chunk.is_final && chunk.sources) {
+                finalSources = chunk.sources;
+            }
             // Write streamed chunk as JSON event
             res.write(`data: ${JSON.stringify(chunk)}\n\n`);
         }
+        
+        // After streaming is done, persist to DB if sessionId is provided
+        if (sessionId) {
+            try {
+                await ChatSession.findByIdAndUpdate(sessionId, {
+                    $push: {
+                        messages: [
+                            { role: 'user', content: question, timestamp: new Date() },
+                            { role: 'ai', content: fullAiResponse, timestamp: new Date(), metadata: { sources: finalSources } }
+                        ]
+                    }
+                });
+            } catch (dbErr) {
+                console.error("[/ask] DB persist error:", dbErr);
+            }
+        }
+
         res.end();
     } catch (err) {
         console.error("[/ask] gRPC stream error:", err);

@@ -20,6 +20,21 @@ export const googleLogin = (req, res) => {
     res.redirect(url);
 }
 
+export const getMe = async (req, res) => {
+    try {
+        const { email } = req.query;
+        if (!email) return res.status(400).json({ error: 'email query param required' });
+
+        const user = await User.findOne({ email }).select('email avtar');
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        res.json({ email: user.email, avatar: user.avtar });
+    } catch (error) {
+        console.error('[auth] me error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
 export const googleCallback = async (req, res) => {
     try {
 
@@ -53,7 +68,9 @@ export const googleCallback = async (req, res) => {
 
         console.log(`[auth] ${email} registered. Gmail watch subscription successfully registered! historyId=${watchResult.historyId}`);
 
-        res.send(`Logged in as ${email}. Gmail watch is active — send a test email now.`);
+        // Redirect to frontend dashboard with user info
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        res.redirect(`${frontendUrl}/auth/callback?email=${encodeURIComponent(email)}&avatar=${encodeURIComponent(data.picture || '')}&name=${encodeURIComponent(data.name || email)}`);
 
 
     } catch (error) {
