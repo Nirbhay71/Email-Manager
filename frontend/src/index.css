@@ -29,8 +29,22 @@ body,
   height: 100%;
   width: 100%;
   font-family: var(--font-inter);
-  background-color: var(--color-dark-900);
-  color: var(--color-text-primary);
+  background-color: #f5f5f3;
+  color: #111111;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: light;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(0, 0, 0, 0.12);
+  color: #111111;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { animate, createTimeline } from 'animejs'
+import { createTimeline } from 'animejs'
 import mailboxIllustration from '../assets/mailbox-illustration.png'
 
 export default function LoginPage() {
