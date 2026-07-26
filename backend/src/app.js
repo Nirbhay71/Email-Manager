@@ -3,10 +3,23 @@ import authRoutes from "./routes/auth.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
 import askRoutes from "./routes/ask.routes.js";
 import searchRoutes from "./routes/search.routes.js";
+import onboardingRoutes from "./routes/onboarding.routes.js";
+import interactionRoutes from "./routes/interaction.routes.js";
+import inboxRoutes from "./routes/inbox.routes.js";
+import cors from "cors";
 
 const app = express();
 
+app.use(cors());
 app.use(express.json());
+
+app.use("/auth", authRoutes);
+app.use("/webhook", webhookRoutes);
+app.use("/ask", askRoutes);
+app.use("/search", searchRoutes);
+app.use("/onboarding", onboardingRoutes);
+app.use("/interaction", interactionRoutes);
+app.use("/inbox", inboxRoutes);
 
 app.get("/", (req, res) => {
     res.send("AI Email Manager — go to /auth/google to register.");
@@ -305,7 +318,7 @@ app.get("/test-ai", (req, res) => {
         <div class="sources-section" id="sourcesSection">
             <div class="sources-title">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-                <span>Sources Used ({count})</span>
+                <span>Sources Used (<span id="sourceCount">0</span>)</span>
             </div>
             <div class="sources-grid" id="sourcesGrid"></div>
         </div>
@@ -424,10 +437,5 @@ app.get("/test-ai", (req, res) => {
 </html>
     `);
 });
-
-app.use("/auth", authRoutes);
-app.use("/webhook", webhookRoutes);
-app.use("/ask", askRoutes);
-app.use("/search", searchRoutes);
 
 export default app;

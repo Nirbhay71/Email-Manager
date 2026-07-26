@@ -13,6 +13,7 @@ __pycache__/
 .coverage
 chroma_data/
 chroma_db/
+*.pkl
 
 # Environment Variables
 .env
@@ -29,7 +30,6 @@ yarn-error.log*
 # OS Files
 .DS_Store
 Thumbs.db
-
 
 demo/calender_reminder/.env
 demo/calender_reminder/token.json

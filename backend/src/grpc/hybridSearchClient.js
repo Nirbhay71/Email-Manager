@@ -21,7 +21,7 @@ const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
 const emailSearchV2Proto = protoDescriptor.emailsearch_v2;
 
 // The new hybrid search service runs on port 50052
-const HYBRID_SEARCH_GRPC_HOST = process.env.HYBRID_SEARCH_GRPC_HOST || "localhost:50052";
+const HYBRID_SEARCH_GRPC_HOST = process.env.HYBRID_SEARCH_GRPC_HOST || "127.0.0.1:50052";
 
 export const hybridSearchClient = new emailSearchV2Proto.SearchService(
     HYBRID_SEARCH_GRPC_HOST,

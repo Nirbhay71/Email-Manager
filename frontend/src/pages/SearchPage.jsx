@@ -39,6 +39,20 @@ export default function SearchPage() {
         }
     };
 
+    const handleInteraction = async (emailId, eventType) => {
+        try {
+            await fetch('http://localhost:3000/interaction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userEmail, emailId, eventType })
+            });
+            // Show a quick console log for debug
+            console.log(`Logged ${eventType} for ${emailId}`);
+        } catch (err) {
+            console.error('Failed to log interaction', err);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gray-900 text-gray-100 p-8">
             <div className="max-w-4xl mx-auto">
@@ -117,7 +131,34 @@ export default function SearchPage() {
                                 <span>From: {r.sender}</span>
                                 <span>{new Date(r.date).toLocaleDateString()}</span>
                             </div>
-                            <p className="text-gray-300 line-clamp-3">{r.snippet}</p>
+                            <p className="text-gray-300 line-clamp-3 mb-4">{r.snippet}</p>
+                            
+                            <div className="flex gap-2 mt-4 pt-4 border-t border-gray-700">
+                                <button 
+                                    onClick={() => handleInteraction(r.id, 'open')}
+                                    className="text-xs px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-gray-200"
+                                >
+                                    Open
+                                </button>
+                                <button 
+                                    onClick={() => handleInteraction(r.id, 'star')}
+                                    className="text-xs px-3 py-1 bg-yellow-900/40 hover:bg-yellow-900/60 text-yellow-500 rounded border border-yellow-900/50"
+                                >
+                                    Star
+                                </button>
+                                <button 
+                                    onClick={() => handleInteraction(r.id, 'archive')}
+                                    className="text-xs px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-gray-200"
+                                >
+                                    Archive
+                                </button>
+                                <button 
+                                    onClick={() => handleInteraction(r.id, 'delete')}
+                                    className="text-xs px-3 py-1 bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded border border-red-900/50"
+                                >
+                                    Delete
+                                </button>
+                            </div>
                         </div>
                     ))}
                     {!loading && results.length === 0 && timings && (

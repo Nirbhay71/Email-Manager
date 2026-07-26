@@ -248,7 +248,7 @@ def serve(port: int | None = None) -> grpc.Server:
     search_pb2_grpc.add_SearchServiceServicer_to_server(
         SearchServiceServicer(), server
     )
-    server.add_insecure_port(f"[::]:{port}")
+    server.add_insecure_port(f"0.0.0.0:{port}")
     server.start()
     logger.info("=== Search gRPC server running on port %d ===", port)
     return server

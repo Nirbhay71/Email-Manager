@@ -24,6 +24,10 @@ const UserSchema = new mongoose.Schema({
         type : Boolean,
         default : null
     },
+    labelVersion: {
+        type: Number,
+        default: 0
+    }
 }, { timestamps: true })
 
 export const User = mongoose.model("user", UserSchema);
