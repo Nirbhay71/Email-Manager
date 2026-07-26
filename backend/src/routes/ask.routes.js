@@ -1,5 +1,5 @@
 import express from "express";
-import { searchClient } from "../grpc/client.js";
+import { hybridSearchClient } from "../grpc/hybridSearchClient.js";
 
 const router = express.Router();
 
@@ -34,7 +34,7 @@ router.post("/", async(req, res) => {
     }, 1000);
 
     // Initiate gRPC streaming call to Python service
-    const call = searchClient.AskQuestion({
+    const call = hybridSearchClient.AskQuestion({
         user_email: userEmail,
         question: question,
         top_k: 5

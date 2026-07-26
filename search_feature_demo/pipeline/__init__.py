@@ -1,0 +1,1 @@
+# Pipeline package — search orchestration.

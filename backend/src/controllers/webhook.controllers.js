@@ -28,7 +28,14 @@ export const handleGmailWebhook = async (req, res) => {
             const existingEmail = await Email.findOne({ messageId: id });
             if (existingEmail) continue;
 
-            const msg = await getMessage(user.tokens, id);
+            let msg;
+            try {
+                msg = await getMessage(user.tokens, id);
+            } catch (fetchErr) {
+                console.warn(`[webhook] Could not fetch message ${id}, skipping. Error: ${fetchErr.message}`);
+                continue;
+            }
+
             console.log(`[webhook] new mail: "${msg.subject}" from ${msg.from}`);
             const isoDate = extractDate(`${msg.subject} ${msg.body}`);
 
@@ -39,7 +46,7 @@ export const handleGmailWebhook = async (req, res) => {
                     messageId: id,
                     from: msg.from,
                     to: emailAddress,
-                    subject: msg.subject,
+                    subject: msg.subject || "(No Subject)", // Fallback if subject is empty
                     body: msg.body,
                     detectedDate: isoDate
                 });
@@ -58,7 +65,8 @@ export const handleGmailWebhook = async (req, res) => {
                     console.log(`[webhook] duplicate email ${id}, skipping`);
                     continue;
                 }
-                throw dbErr;
+                console.warn(`[webhook] Failed to save email ${id}: ${dbErr.message}`);
+                continue; // Do NOT throw, continue processing the rest
             }
 
             if (!isoDate) {

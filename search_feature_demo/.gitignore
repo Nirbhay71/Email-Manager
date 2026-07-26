@@ -1,0 +1,9 @@
+﻿venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+chroma_data/
+.pytest_cache/
+.coverage
+*.log
