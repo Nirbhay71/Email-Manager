@@ -1,30 +1,52 @@
-# Virtual environments
+# ─────────────────────────────────────────────
+# python-service/.gitignore
+# ─────────────────────────────────────────────
+
+# ── Virtual environments ─────────────────────
 venv/
 .venv/
 env/
 ENV/
 
-# Local configuration & secrets
+# ── Environment & secrets ────────────────────
 .env
-.env.local
+.env.*
+!.env.example
+token.json
+credentials.json
+client_secret*.json
 
-# Python cache & build files
+# ── Python cache & build ─────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
 .pytest_cache/
 .mypy_cache/
+*.egg-info/
+dist/
+build/
 
-# Local database and vector stores
+# ── Generated proto stubs ────────────────────
+generated/
+
+# ── Vector stores / local DBs ────────────────
 chroma_data/
+chroma_db/
 *.db
 *.sqlite3
 
-# IDEs, OS, and system files
+# ── Logs ─────────────────────────────────────
+logs/
+*.log
+
+# ── OS / system ──────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE / Editor ─────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
-.DS_Store
-Thumbs.db
