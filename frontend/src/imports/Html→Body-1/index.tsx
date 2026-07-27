@@ -181,7 +181,7 @@ function Heading() {
   return (
     <div className="content-stretch flex flex-col items-start relative shrink-0 w-full" data-name="Heading 1">
       <div className="[word-break:break-word] flex flex-col font-['Inter:Semi_Bold',sans-serif] font-semibold justify-center leading-[0] not-italic relative shrink-0 text-[36px] text-black tracking-[-0.9px] whitespace-nowrap">
-        <p className="leading-[40px]">Email Manager</p>
+        <p className="leading-[40px]">MailSense</p>
       </div>
     </div>
   );

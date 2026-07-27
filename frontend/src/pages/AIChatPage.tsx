@@ -170,7 +170,7 @@ function TopHeader({ weather }: { weather: WeatherData | null }) {
       {/* Title + Date */}
       <div className="flex flex-col gap-[3.5px]">
         <h1 className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[36px] text-black tracking-[-0.9px] leading-[40px] whitespace-nowrap">
-          Email Manager
+          MailSense
         </h1>
         <div className="flex items-center gap-[8px]">
           <svg fill="none" viewBox="0 0 16 16" width="16" height="16">
