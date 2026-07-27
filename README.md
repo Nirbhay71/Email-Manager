@@ -9,12 +9,10 @@ Developed as a **next-generation intelligent inbox**, combining expertise in mac
 
 ## 👥 Contributors
 
-| Name | Role | College | Graduation Year | Email / Phone | GitHub |
+| Name | College | Graduation Year | Email / Phone | GitHub |
 | :--- | :--- | :--- | :---: | :--- | :--- |
-| **[Nirbhay]** | Team Leader (ML) | [Nirma University] | 2028 | [24bce268@nirmauni.ac.in](mailto:24bce268@nirmauni.ac.in) / [8320586268] | [@itatshu](https://github.com/itatshu) |
-| **[Het]** | Backend Engineer | [Nirma University] | 2028 | [24bce261@nirmauni.ac.in](mailto:24bce261@nirmauni.ac.in) / [9023226077] | [@Het6518](https://github.com/Het6518) |
-| **[Darshan]** | ML Engineer | [Nirma University] | 2028 | [24bce233@nirmauni.ac.in](mailto:24bce233@nirmauni.ac.in) / [9328325601] | [@darshanNhb](https://github.com/darshanNhb) |
-| **[Jenil]** | Frontend Engineer | [Nirma University] | 2028 | [24bce267@nirmauni.ac.in](mailto:24bce267@nirmauni.ac.in) / [9316130701] | [@MLinej](https://github.com/MLinej) |
+| **[Nirbhay]** | [Nirma University] | 2028 | [shingala71@gmail.com](mailto:shingala71@gmail.com]) / [8320586268] | [@itatshu](https://github.com/itatshu) |
+| **[Darshan]** | [Nirma University] | 2028 | [buddhdevdarshan1478@gmail.com](mailto:buddhdevdarshan1478@gmail.com) / [9328325601] | [@darshanNhb](https://github.com/darshanNhb) |
 
 ---
 
@@ -22,7 +20,6 @@ Developed as a **next-generation intelligent inbox**, combining expertise in mac
 
 <p><em>Transforming the inbox from a chronological feed into a context-aware knowledge base.</em></p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org)
@@ -140,6 +137,88 @@ graph TD
 
 ---
 
+## 💻 Detailed Tech Stack
+
+Our platform leverages a specialized stack distributed across Node.js and Python microservices to ensure real-time API responsiveness while performing heavy machine learning computation.
+
+### Frontend Application
+- **React.js 18**: Component-based UI library ensuring highly interactive dashboard performance.
+- **Vite**: Ultra-fast build tool and development server providing instant Hot Module Replacement (HMR).
+- **Tailwind CSS v4**: Utility-first CSS framework. Extensively used for our dark-mode interface, dynamic Importance Badges, and fluid micro-animations.
+- **Axios**: Intercepts HTTP requests and manages JWT/session headers for secure backend communication.
+
+### Backend Infrastructure (API & Synchronization)
+- **Node.js & Express.js**: Event-driven architecture perfectly suited for handling high-throughput Google Pub/Sub Webhooks whenever a new email arrives.
+- **MongoDB & Mongoose**: Used as the primary operational database. Its document-oriented structure naturally maps to raw email JSON payloads and provides rapid metadata-filtering via indexes.
+- **Google Cloud APIs (Gmail & OAuth 2.0)**: Manages secure user authentication, watch subscriptions, and message fetching.
+
+### Machine Learning & Data Science (Python)
+- **FastAPI**: Provides a high-concurrency async REST interface for the search engine.
+- **gRPC (Google Remote Procedure Calls)**: Enables ultra-low-latency binary communication between the Node.js backend and the Python ML services (avoiding HTTP overhead for high-frequency scoring/embedding requests).
+- **ChromaDB**: The primary Vector Database. Selected for its lightweight local persistency, making it perfect for storing dense semantic embeddings of email subjects and bodies.
+- **SentenceTransformers**: Framework used for embedding generation.
+- **scikit-learn & Pandas**: Core libraries for the Feature Engineering pipeline, dataset handling, and Platt Scaling calibration.
+
+### Specific AI & NLP Models
+- **gte-Qwen2-1.5B-instruct (Embeddings)**: A 1.5-billion parameter embedding model by Alibaba. It generates highly contextual dense vectors for semantic search, heavily outperforming basic models.
+- **bge-reranker-v2-m3 (Cross-Encoder)**: A heavy, highly accurate model that takes a query and a retrieved email, processes them *together*, and outputs an absolute relevance score. This acts as the final quality filter in the search pipeline.
+- **LightGBM (Importance Engine)**: A gradient boosting framework created by Microsoft. Selected over deep learning because it handles tabular (feature-engineered) and categorical data significantly faster and with higher accuracy on small datasets.
+- **spaCy (en_core_web_sm)**: A lightweight, deterministic NLP library used to parse search queries for intent, dates, and named entities without the latency of an LLM call.
+- **Google Gemini API (LLM)**: The foundational Large Language Model used to power the RAG (Retrieval-Augmented Generation) chat interface.
+
+---
+
+## 📂 Comprehensive Folder Structure
+
+The project is structured into strict microservices to enforce a separation of concerns between I/O bound web traffic and CPU/GPU bound ML workloads.
+
+```text
+Email-Manager/
+│
+├── backend/                       # 🟢 Node.js API server (Auth, Webhooks, Orchestration)
+│   └── src/
+│       ├── config/                # Database and OAuth credentials configuration
+│       ├── controllers/           # Request handlers (webhook processing, auth callbacks)
+│       ├── grpc/                  # gRPC client stubs to communicate with Python services
+│       ├── models/                # Mongoose Schemas (Email, EmailLabel, SyncState)
+│       ├── routes/                # Express API endpoints (/inbox, /onboarding, /search)
+│       └── services/              # Core business logic (gmail.service.js, inboxSampler.js)
+│
+├── frontend/                      # 🔵 React UI (Dashboard, Inbox, AI Chat)
+│   └── src/
+│       ├── assets/                # Global CSS (Tailwind index), static images
+│       ├── components/            # Reusable UI (ImportanceBadge, Explainability Tooltips)
+│       └── pages/                 # Full views: InboxPage, SearchPage, OnboardingLabeling
+│
+├── search_feature_demo/           # 🔍 Python Hybrid Search & RAG microservice
+│   ├── grpc_app/                  # gRPC server exposing EmbedAndStore routines
+│   ├── llm/                       # Gemini AI Copilot context orchestration
+│   ├── models/                    # Scripts to download and cache HuggingFace weights
+│   ├── retrieval/                 # Search core: rank_bm25, ChromaDB management, RRF logic
+│   ├── router/                    # Query intent parsing and operator extraction via spaCy
+│   └── main.py                    # Entry point for FastAPI (8001) and gRPC (50052)
+│
+├── feature_engineering/           # ⚙️ ML Feature Extraction Pipeline
+│   ├── sender_features.py         # Analyzes sender domains and historical contact frequency
+│   ├── content_features.py        # Extracts NLP flags (urgency, OTPs, deadlines)
+│   ├── time_features.py           # Temporal heuristics (day of week, time of day)
+│   ├── pipeline.py                # Combines all extractors into a single feature vector
+│   └── tests/                     # Verification of edge cases and cold-start guards
+│
+├── python-service/                # 🧠 Importance Scoring & Inference API
+│   ├── importance_model/          
+│   │   ├── train_global.py        # Trains the global LightGBM bootstrap model on all data
+│   │   ├── calibration.py         # Fits per-user Platt scaling logistic regression
+│   │   ├── scorer.py              # Executes real-time inference with pred_contrib=True
+│   │   └── explanation_labels.py  # Maps raw ML features to human-readable UI tooltips
+│   └── app.py                     # Entry point for the scoring REST API
+│
+├── SECURITY_NOTES.md              # Documentation on current OAuth scope and privacy caveats
+└── README.md                      # This document
+```
+
+---
+
 ## 🧠 Machine Learning Pipelines
 
 ### 1. Hybrid Search & Retrieval (RAG)
@@ -153,55 +232,6 @@ Uses a **Global Bootstrap Model + Per-User Calibration**:
 - **Feature Extraction**: Generates 25+ features (temporal trends, sender history, regex content flags, embedding centroids).
 - **Global Model**: A single LightGBM binary classifier trained across all users to prevent overfitting on low-data accounts.
 - **Platt Scaling**: Adjusts the global model's probabilities to the specific baseline of each individual user.
-
----
-
-## 💻 Tech Stack
-
-### Frontend
-- **React.js 18** + **Vite**
-- **Tailwind CSS v4** (Dark mode, animations, responsive layout)
-
-### Backend
-- **Node.js** + **Express.js**
-- **MongoDB** + **Mongoose** (Document DB)
-- **Google APIs** (Gmail API, Pub/Sub)
-
-### Machine Learning & Data Science
-- **Python 3.11+**
-- **Search**: `FastAPI`, `gRPC`, `ChromaDB`, `rank_bm25`, `spaCy`
-- **Models**: `gte-Qwen2-1.5B-instruct` (Embeddings), `bge-reranker-v2-m3` (Reranker)
-- **Importance Engine**: `LightGBM`, `scikit-learn`, `Pandas`
-- **LLM**: Google Gemini API
-
----
-
-## 📂 Project Structure
-
-```text
-Email-Manager/
-│
-├── backend/                  # Node.js API server (Auth, Webhooks, Orchestration)
-├── frontend/                 # React UI (Dashboard, Inbox, AI Chat)
-│
-├── search_feature_demo/      # 🔍 Python Hybrid Search & RAG microservice
-│   ├── grpc_app/             # gRPC communication layer
-│   ├── retrieval/            # BM25, ChromaDB, and RRF logic
-│   ├── router/               # Query intent parsing (spaCy)
-│   └── llm/                  # Gemini AI Copilot orchestration
-│
-├── feature_engineering/      # ⚙️ ML Feature Extraction Pipeline
-│   ├── sender_features.py    # Sender domain and history analysis
-│   ├── content_features.py   # NLP and regex-based content flags
-│   └── time_features.py      # Temporal heuristics
-│
-├── python-service/           # 🧠 Importance Scoring & Inference API
-│   ├── train_global.py       # Global LightGBM bootstrap training
-│   ├── calibration.py        # Per-user Platt scaling
-│   └── app.py                # Scoring endpoint with XAI (SHAP)
-│
-└── README.md
-```
 
 ---
 
@@ -283,14 +313,10 @@ DEVICE=auto
 
 ## 🔮 Future Roadmap
 
-- [ ] **Historical 6-Month Backfill** — Bulk embedding pipeline for initializing new users quickly.
+- [ ] **Historical 1-6 Month Backfill** — Bulk embedding pipeline for initializing new users quickly.
 - [ ] **Automated Draft Generation** — Let the AI Copilot auto-draft replies to flagged high-importance emails.
 - [ ] **Action Item Extraction Dashboard** — Dedicated kanban board for extracted tasks and deadlines.
 - [ ] **Edge AI Deployment** — Run lightweight embeddings locally in the browser via ONNX for absolute privacy.
-
-## 📜 License
-
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
 ---
 
