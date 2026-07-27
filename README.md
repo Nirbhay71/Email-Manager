@@ -10,9 +10,9 @@ Developed as a **next-generation intelligent inbox**, combining expertise in mac
 ## 👥 Contributors
 
 | Name | College | Graduation Year | Email / Phone | GitHub |
-| :--- | :--- | :--- | :---: | :--- | :--- |
-| **[Nirbhay]** | [Nirma University] | 2028 | [24bce268@nirmauni.ac.in](mailto:24bce268@nirmauni.ac.in) / [8320586268] | [@itatshu](https://github.com/itatshu) |
-| **[Darshan]** | [Nirma University] | 2028 | [buddhdevdarshan1478@gmail.com](mailto:buddhdevdarshan1478@gmail.com) / [9328325601] | [@darshanNhb](https://github.com/darshanNhb) |
+| :--- | :--- | :---: | :--- | :--- |
+| **Nirbhay** | Nirma University | 2028 | [24bce268@nirmauni.ac.in](mailto:24bce268@nirmauni.ac.in)<br>8320586268 | [@itatshu](https://github.com/itatshu) |
+| **Darshan** | Nirma University | 2028 | [buddhdevdarshan1478@gmail.com](mailto:buddhdevdarshan1478@gmail.com)<br>9328325601 | [@darshanNhb](https://github.com/darshanNhb) |
 
 ---
 
