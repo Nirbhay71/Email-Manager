@@ -28,7 +28,7 @@ Developed as a **next-generation intelligent inbox**, combining expertise in mac
 
 <br/>
 
-> **MailSense** is a production-quality hybrid email platform. It combines **structured Gmail-style operators, BM25 keyword search, semantic vector search, cross-encoder reranking, and a personalized ML importance engine** to help you find, understand, and prioritize your communications.
+> **MailSense** is a hybrid email platform. It combines **structured Gmail-style operators, BM25 keyword search, semantic vector search, cross-encoder reranking, and a personalized ML importance engine** to help you find, understand, and prioritize your communications.
 
 </div>
 
@@ -66,7 +66,7 @@ Standard email clients like Gmail and Outlook are built on outdated retrieval pa
 
 ## 🚀 Key Features
 
-### 🔍 Production-Grade Hybrid Search
+### 🔍 Hybrid Search
 Our advanced search pipeline routes queries through multiple retrieval mechanisms simultaneously:
 - **BM25 Keyword Search** (`rank_bm25`) for exact lexical matches.
 - **Vector Semantic Search** (`ChromaDB` + `gte-Qwen2-1.5B-instruct`) to find emails by meaning.
