@@ -2,10 +2,7 @@ import { ChatSession } from "../models/chatSession.model.js";
 
 export const getSessions = async (req, res) => {
     try {
-        const { email } = req.query;
-        if (!email) {
-            return res.status(400).json({ error: "email is required" });
-        }
+        const email = req.user.email; // from verified JWT
 
         const sessions = await ChatSession.find({ userEmail: email }).sort({ updatedAt: -1 });
         res.status(200).json(sessions);
@@ -17,10 +14,8 @@ export const getSessions = async (req, res) => {
 
 export const createSession = async (req, res) => {
     try {
-        const { email, title } = req.body;
-        if (!email) {
-            return res.status(400).json({ error: "email is required" });
-        }
+        const email = req.user.email; // from verified JWT
+        const { title } = req.body;
 
         const newSession = await ChatSession.create({
             userEmail: email,

@@ -3,8 +3,7 @@ import GeneratedLoginPage from './pages/LoginPage.tsx'
 import InboxPage from './pages/InboxPage.tsx'
 import AIChatPage from './pages/AIChatPage.tsx'
 import ManagementPage from './pages/ManagementPage.tsx'
-
-const BACKEND_URL = 'http://localhost:5000'
+import { apiFetch } from './utils/api.ts'
 
 function parseCallbackUser() {
   const params = new URLSearchParams(window.location.search)
@@ -105,8 +104,8 @@ export default function App() {
 
   useEffect(() => {
     const init = async () => {
+      // Handle OAuth callback — backend already set cookies, just read user info from URL params
       const callbackUser = parseCallbackUser()
-
       if (callbackUser) {
         localStorage.setItem('user', JSON.stringify(callbackUser))
         setUser(callbackUser)
@@ -134,20 +133,20 @@ export default function App() {
         return
       }
 
+      // Validate session is still alive with the backend (uses cookie automatically)
       try {
-        const res = await fetch(`${BACKEND_URL}/auth/me?email=${encodeURIComponent(parsed.email)}`)
+        const res = await apiFetch('/auth/me')
         if (!res.ok) {
           localStorage.removeItem('user')
           setUser(false)
           replacePath('/')
           return
         }
-
         const data = await res.json()
         const freshUser = {
           email: data.email,
           avatar: data.avatar,
-          name: data.name ?? parsed.name,
+          name: parsed.name,
         }
         localStorage.setItem('user', JSON.stringify(freshUser))
         setUser(freshUser)

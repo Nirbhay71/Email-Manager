@@ -48,12 +48,8 @@ function toInboxEmail(email) {
 
 export const getInboxEmails = async (req, res) => {
     try {
-        const { userEmail } = req.query;
-
-        if (!userEmail) {
-            return res.status(400).json({ error: "userEmail query param required" });
-        }
-
+        // Email is taken from the verified JWT — client cannot spoof another user
+        const userEmail = req.user.email;
         const limit = parseLimit(req.query.limit);
         const emails = await Email.find({ userEmail })
             .sort({ createdAt: -1 })

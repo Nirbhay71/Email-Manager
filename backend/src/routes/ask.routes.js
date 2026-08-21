@@ -13,11 +13,12 @@ router.get("/", (req, res) => {
  * Streams answer to user query via Server-Sent Events (SSE)
  * Request body: { question: string, userEmail: string, sessionId?: string }
  */
-router.post("/", async(req, res) => {
-    const { question, userEmail, sessionId } = req.body;
+router.post("/", async (req, res) => {
+    const { question, sessionId } = req.body;
+    const userEmail = req.user.email; // from verified JWT — cannot be spoofed
 
-    if (!question || !userEmail) {
-        return res.status(400).json({ error: "question and userEmail are required" });
+    if (!question) {
+        return res.status(400).json({ error: "question is required" });
     }
 
     // Set Server-Sent Events (SSE) headers
@@ -55,18 +56,22 @@ router.post("/", async(req, res) => {
             // Write streamed chunk as JSON event
             res.write(`data: ${JSON.stringify(chunk)}\n\n`);
         }
-        
+
         // After streaming is done, persist to DB if sessionId is provided
         if (sessionId) {
             try {
-                await ChatSession.findByIdAndUpdate(sessionId, {
-                    $push: {
-                        messages: [
-                            { role: 'user', content: question, timestamp: new Date() },
-                            { role: 'ai', content: fullAiResponse, timestamp: new Date(), metadata: { sources: finalSources } }
-                        ]
+                // Scoped to the authenticated user — prevents cross-user session injection
+                await ChatSession.findOneAndUpdate(
+                    { _id: sessionId, userEmail },
+                    {
+                        $push: {
+                            messages: [
+                                { role: 'user', content: question, timestamp: new Date() },
+                                { role: 'ai', content: fullAiResponse, timestamp: new Date(), metadata: { sources: finalSources } }
+                            ]
+                        }
                     }
-                });
+                );
             } catch (dbErr) {
                 console.error("[/ask] DB persist error:", dbErr);
             }

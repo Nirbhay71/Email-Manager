@@ -14,12 +14,11 @@
     btn.addEventListener("click", async (event)=>{
         const responce = await fetch("http://localhost:5000/api");
         const data = await responce.json();
-        console.log(data);
+        console.log(data[0][0]);
         const div = document.createElement("div");
         const content = `from :- ${data[0][0].from}
                         to :- ${data[0][0].to}
                         subject :- ${data[0][0].subject}
-                        text :- ${data[0][0].text}
                         `
         div.innerText = content;
         document.querySelector(".result").appendChild(div)

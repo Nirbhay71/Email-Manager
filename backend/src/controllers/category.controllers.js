@@ -15,11 +15,7 @@ function toCategory(category) {
 
 export const getCategories = async (req, res) => {
     try {
-        const { userEmail } = req.query;
-
-        if (!userEmail) {
-            return res.status(400).json({ error: "userEmail query param required" });
-        }
+        const userEmail = req.user.email; // from verified JWT
 
         const categories = await Category.find({ userEmail })
             .sort({ createdAt: -1 })
@@ -38,12 +34,8 @@ export const getCategories = async (req, res) => {
 
 export const createCategory = async (req, res) => {
     try {
-        const { userEmail } = req.body;
+        const userEmail = req.user.email; // from verified JWT
         const name = normalizeName(req.body.name);
-
-        if (!userEmail) {
-            return res.status(400).json({ error: "userEmail is required" });
-        }
 
         if (!name) {
             return res.status(400).json({ error: "category name is required" });

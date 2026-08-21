@@ -9,13 +9,11 @@ const router = express.Router();
  * Request body: { query: string, userEmail: string, limit?: number, offset?: number }
  */
 router.post("/v2", async (req, res) => {
-    const { query, userEmail, limit, offset } = req.body;
+    const { query, limit, offset } = req.body;
+    const userEmail = req.user.email; // from verified JWT — cannot be spoofed
 
     if (!query) {
         return res.status(400).json({ error: "query is required" });
-    }
-    if (!userEmail) {
-        return res.status(400).json({ error: "userEmail is required" });
     }
 
     console.log(`[HOP 1: Express Route] Received query="${query}", userEmail="${userEmail}"`);

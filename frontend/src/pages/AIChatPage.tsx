@@ -3,8 +3,7 @@ import svgPaths from "../imports/Html→Body-2/svg-9eyoj0uxqg";
 import imgUser from "../imports/Html→Body-2/4a1497f7eb1ac52188d5053d788a4d72df0d0413.png";
 import imgAiAssistant from "../imports/Html→Body-2/09d34397fc5dfe77be0866af9c35f049cbca10fe.png";
 import imgUserAvatar from "../imports/Html→Body-2/3d16bb95b2a6f2c06c620b3e84b11991da111c9a.png";
-
-const BACKEND = "http://localhost:5000";
+import { apiFetch } from "../utils/api.ts";
 
 function getStoredUser(): { email?: string; avatar?: string; name?: string } {
   if (typeof window === "undefined") return {};
@@ -83,21 +82,21 @@ function useWeather(): WeatherData | null {
   return weather;
 }
 
-function useSessions(email?: string) {
+function useSessions() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refresh = async () => {
-    if (!email) return;
     setLoading(true);
     try {
-      const res = await fetch(`${BACKEND}/chat/sessions?email=${encodeURIComponent(email)}`);
+      // No email needed — backend reads it from the JWT cookie
+      const res = await apiFetch('/chat/sessions');
       if (res.ok) setSessions(await res.json());
     } catch { /* silent */ }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { refresh(); }, [email]);
+  useEffect(() => { refresh(); }, []);
   return { sessions, loading, refresh };
 }
 
@@ -280,10 +279,10 @@ function ChatWorkspace({ userEmail }: { userEmail?: string }) {
     setMessages(prev => [...prev, { id: aiId, role: "ai", content: "", timestamp: new Date(), streaming: true }]);
 
     try {
-      const res = await fetch(`${BACKEND}/ask`, {
+      // No userEmail in body — backend reads it from the JWT cookie
+      const res = await apiFetch('/ask', {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, userEmail: email }),
+        body: JSON.stringify({ question }),
       });
 
       if (!res.ok || !res.body) throw new Error(`Server error ${res.status}`);
@@ -514,7 +513,7 @@ function FloatingExpand() {
 export default function AIChatPage() {
   const user = getStoredUser();
   const weather = useWeather();
-  const { sessions, loading } = useSessions(user.email);
+  const { sessions, loading } = useSessions(); // no email needed
 
   return (
     <div className="w-full min-h-screen relative" style={{ background: "rgb(226,228,231)" }}>
