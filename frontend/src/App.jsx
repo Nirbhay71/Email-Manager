@@ -3,7 +3,7 @@ import GeneratedLoginPage from './pages/LoginPage.tsx'
 import InboxPage from './pages/InboxPage.tsx'
 import AIChatPage from './pages/AIChatPage.tsx'
 import ManagementPage from './pages/ManagementPage.tsx'
-import { apiFetch } from './utils/api.ts'
+import { apiFetch, BACKEND } from './utils/api.ts'
 
 function parseCallbackUser() {
   const params = new URLSearchParams(window.location.search)
@@ -65,7 +65,7 @@ function LoadingScreen() {
 
 function LoginRoute() {
   const handleGoogleLogin = () => {
-    window.location.href = `${BACKEND_URL}/auth/google`
+    window.location.href = `${BACKEND}/auth/google`
   }
 
   return (
@@ -108,6 +108,8 @@ export default function App() {
       const callbackUser = parseCallbackUser()
       if (callbackUser) {
         localStorage.setItem('user', JSON.stringify(callbackUser))
+        // Flag: tell the second StrictMode invocation to skip /auth/me
+        sessionStorage.setItem('just_logged_in', '1')
         setUser(callbackUser)
         replacePath('/inbox')
         setLoading(false)
@@ -133,6 +135,15 @@ export default function App() {
         return
       }
 
+      // If we just came from OAuth, trust localStorage — skip /auth/me (cookie may not propagate instantly)
+      if (sessionStorage.getItem('just_logged_in')) {
+        sessionStorage.removeItem('just_logged_in')
+        setUser(parsed)
+        if (window.location.pathname === '/') replacePath('/inbox')
+        setLoading(false)
+        return
+      }
+
       // Validate session is still alive with the backend (uses cookie automatically)
       try {
         const res = await apiFetch('/auth/me')
@@ -140,6 +151,7 @@ export default function App() {
           localStorage.removeItem('user')
           setUser(false)
           replacePath('/')
+          setLoading(false)
           return
         }
         const data = await res.json()
