@@ -20,7 +20,7 @@ export default function ProfilePage() {
     (async () => {
       const next: Stats = { emails: null, chats: null };
       try {
-        const res = await apiFetch("/emails/inbox?limit=100");
+        const res = await apiFetch("/emails/inbox?limit=1");
         if (res.ok) next.emails = (await res.json()).total ?? 0;
       } catch { /* leave as unknown */ }
       try {
@@ -41,7 +41,7 @@ export default function ProfilePage() {
   };
 
   const displayName = user.name || (user.email ? user.email.split("@")[0] : "Your account");
-  const fmt = (n: number | null) => (n === null ? "—" : n >= 100 ? "100+" : String(n));
+  const fmt = (n: number | null) => (n === null ? "—" : String(n));
 
   return (
     <div className="w-full min-h-screen" style={{ background: "rgb(226,228,231)" }}>

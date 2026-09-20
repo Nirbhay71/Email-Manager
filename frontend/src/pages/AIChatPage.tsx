@@ -2,28 +2,11 @@ import React, { useState, useEffect, useRef } from "react";
 import svgPaths from "../imports/Html→Body-2/svg-9eyoj0uxqg";
 import imgUserAvatar from "../imports/Html→Body-2/3d16bb95b2a6f2c06c620b3e84b11991da111c9a.png";
 import { apiFetch } from "../utils/api.ts";
+import { useWeather, type WeatherData } from "../utils/weather.ts";
 import NavRail, { Avatar, AssistantIcon, getStoredUser } from "../components/NavRail.tsx";
-
-// ── Weather description → simple label ───────────────────────────────────────
-function wmoLabel(code: number): string {
-  if (code === 0) return "Clear";
-  if (code <= 3) return "Cloudy";
-  if (code <= 9) return "Foggy";
-  if (code <= 19) return "Drizzle";
-  if (code <= 29) return "Rain";
-  if (code <= 39) return "Snow";
-  if (code <= 49) return "Fog";
-  if (code <= 59) return "Drizzle";
-  if (code <= 69) return "Rain";
-  if (code <= 79) return "Snow";
-  if (code <= 84) return "Showers";
-  if (code <= 94) return "Thunder";
-  return "Stormy";
-}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface WeatherData { temp: number; label: string }
 interface ChatSession {
   _id: string;
   title: string;
@@ -41,33 +24,6 @@ interface Message {
 }
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
-
-function useWeather(): WeatherData | null {
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  useEffect(() => {
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        try {
-          const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current_weather=true`;
-          const res = await fetch(url);
-          const data = await res.json();
-          const { temperature, weathercode } = data.current_weather;
-          setWeather({ temp: Math.round(temperature), label: wmoLabel(weathercode) });
-        } catch { /* silent */ }
-      },
-      async () => {
-        // fallback: IP-based coords via open-meteo doesn't need location; use default
-        try {
-          const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=20&longitude=77&current_weather=true");
-          const data = await res.json();
-          const { temperature, weathercode } = data.current_weather;
-          setWeather({ temp: Math.round(temperature), label: wmoLabel(weathercode) });
-        } catch { /* silent */ }
-      }
-    );
-  }, []);
-  return weather;
-}
 
 function useSessions() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -113,23 +69,11 @@ function TopHeader({ weather }: { weather: WeatherData | null }) {
           MailSense
         </h1>
         <div className="flex items-center gap-[8px]">
-          <svg fill="none" viewBox="0 0 16 16" width="16" height="16">
-            <path d={svgPaths.p2b6e9900} stroke="#6B7280" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.33333" />
-          </svg>
           <span className="font-['Inter:Medium',sans-serif] font-medium text-[#6b7280] text-[14px] leading-[20px]">{dateStr}</span>
-          <svg fill="none" viewBox="0 0 12 12" width="12" height="12">
-            <path d="M9.5 4.5L6 8L2.5 4.5" stroke="#6B7280" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-          </svg>
         </div>
       </div>
       {/* Controls */}
       <div className="flex items-center gap-[16px]">
-        {/* Camera */}
-        <div className="bg-black rounded-full p-[12px] shrink-0 shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1),0px_4px_6px_-4px_rgba(0,0,0,0.1)]">
-          <svg fill="none" viewBox="0 0 20 20" width="20" height="20">
-            <path d={svgPaths.p35ec9d00} stroke="white" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.66667" />
-          </svg>
-        </div>
         {/* Weather chip */}
         <div className="bg-white rounded-full drop-shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex items-center gap-[12px] px-[16px] py-[8px] shrink-0">
           <div className="flex items-center gap-[4px]">
@@ -348,11 +292,6 @@ function ChatWorkspace({ userEmail, messages, setMessages, isStreaming, setIsStr
       {/* Input */}
       <div className="bg-white border-t border-[#f3f4f6] px-[32px] pt-[33px] pb-[32px] shrink-0">
         <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-full flex items-center p-[9px]">
-          <button className="p-[12px] rounded-full hover:bg-gray-200 transition shrink-0">
-            <svg fill="none" viewBox="0 0 24 24" width="24" height="24">
-              <path d={svgPaths.p8ece100} stroke="#9CA3AF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-            </svg>
-          </button>
           <input
             type="text"
             value={inputValue}
@@ -360,7 +299,7 @@ function ChatWorkspace({ userEmail, messages, setMessages, isStreaming, setIsStr
             onKeyDown={handleKeyDown}
             placeholder="Ask about your emails..."
             disabled={isStreaming}
-            className="flex-1 px-[16px] bg-transparent outline-none font-['Inter:Regular',sans-serif] font-normal text-[#374151] text-[14px] placeholder-[#9ca3af] disabled:opacity-50"
+            className="flex-1 px-[20px] bg-transparent outline-none font-['Inter:Regular',sans-serif] font-normal text-[#374151] text-[14px] placeholder-[#9ca3af] disabled:opacity-50"
           />
           <button
             onClick={sendMessage}
@@ -448,19 +387,6 @@ function HistoryPanel({ sessions, loading, activeId, disabled, onSelect, onNew }
   );
 }
 
-// ── FLOATING EXPAND ───────────────────────────────────────────────────────────
-function FloatingExpand() {
-  return (
-    <div className="absolute bottom-[32px] right-[32px]">
-      <div className="backdrop-blur-[4px] bg-[rgba(255,255,255,0.7)] border border-white rounded-[24px] w-[48px] h-[48px] flex items-center justify-center shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1),0px_4px_6px_-4px_rgba(0,0,0,0.1)] cursor-pointer">
-        <svg fill="none" viewBox="0 0 24 24" width="24" height="24">
-          <path d={svgPaths.p1c4d6800} stroke="black" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-        </svg>
-      </div>
-    </div>
-  );
-}
-
 // ── PAGE ROOT ─────────────────────────────────────────────────────────────────
 export default function AIChatPage() {
   const user = getStoredUser();
@@ -517,7 +443,6 @@ export default function AIChatPage() {
           </div>
         </div>
       </div>
-      <FloatingExpand />
     </div>
   );
 }
