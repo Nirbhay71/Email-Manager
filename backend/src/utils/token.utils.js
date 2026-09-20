@@ -23,6 +23,13 @@ export const REFRESH_COOKIE_OPTS = {
     maxAge: REFRESH_EXPIRY_MS
 };
 
+// Short-lived cookies used only to carry the OAuth `state` and PKCE
+// `code_verifier` between /auth/google and /auth/google/callback.
+export const OAUTH_STATE_COOKIE_OPTS = {
+    ...BASE_COOKIE_OPTS,
+    maxAge: 10 * 60 * 1000 // 10 minutes
+};
+
 // ─── Token generators ─────────────────────────────────────────────────────────
 
 /**

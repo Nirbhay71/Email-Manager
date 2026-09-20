@@ -32,10 +32,30 @@ RERANKER_MODEL: str = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
 DEVICE: str = os.getenv("DEVICE", "auto")
 
 # ---------------------------------------------------------------------------
-# Server Ports
+# Server Ports / Binding
 # ---------------------------------------------------------------------------
 GRPC_PORT: int = int(os.getenv("SEARCH_GRPC_PORT", "50052"))
 HTTP_PORT: int = int(os.getenv("SEARCH_HTTP_PORT", "8001"))
+
+# Bind to localhost by default — this service is only meant to be reached by
+# the Node backend on the same host/private network, never directly by clients.
+GRPC_BIND_HOST: str = os.getenv("GRPC_BIND_HOST", "127.0.0.1")
+HTTP_BIND_HOST: str = os.getenv("HTTP_BIND_HOST", "127.0.0.1")
+
+# ---------------------------------------------------------------------------
+# Service-to-service auth
+# ---------------------------------------------------------------------------
+# Shared secret the Node backend must present (gRPC metadata "x-service-token"
+# or HTTP header "X-Service-Token") on every call. Required outside development.
+SERVICE_TOKEN: str = os.getenv("SERVICE_TOKEN", "")
+
+# Comma-separated list of origins allowed to call the HTTP API directly
+# (normally just the frontend origin, if the HTTP API is exposed at all).
+CORS_ALLOWED_ORIGINS: list[str] = [
+    o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",") if o.strip()
+]
+
+ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 
 # ---------------------------------------------------------------------------
 # Retrieval Tuning

@@ -10,11 +10,12 @@ export const getCalendarEvents = async (req, res) => {
 
         const user = await User.findOne({ email }).select("email tokens");
         if (!user) return res.status(404).json({ error: "User not found" });
-        if (!user.tokens?.access_token && !user.tokens?.refresh_token) {
+        const tokens = user.tokensPlain;
+        if (!tokens?.access_token && !tokens?.refresh_token) {
             return res.status(401).json({ error: "Google Calendar is not connected for this user" });
         }
 
-        const events = await listCalendarEvents(user.tokens, { timeMin, timeMax });
+        const events = await listCalendarEvents(tokens, { timeMin, timeMax });
 
         res.json({
             email: user.email,

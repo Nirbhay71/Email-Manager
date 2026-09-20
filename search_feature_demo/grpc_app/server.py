@@ -8,6 +8,7 @@ Q&A gRPC server (port 50051).
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import sys
@@ -231,6 +232,39 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
             return
 
 
+class _ServiceTokenInterceptor(grpc.ServerInterceptor):
+    """
+    Rejects any RPC that doesn't present the shared 'x-service-token' metadata
+    value. Fails closed outside development — if SERVICE_TOKEN isn't
+    configured, every call is rejected rather than silently allowed through.
+    """
+
+    def __init__(self) -> None:
+        def deny(_request, context):
+            context.abort(grpc.StatusCode.UNAUTHENTICATED, "Unauthorized")
+
+        # Two shapes: Search/EmbedAndStore are unary_unary, AskQuestion is
+        # unary_stream (server-streaming). Denying a streaming call with a
+        # unary_unary handler mismatches the RPC's actual shape and breaks
+        # the call outright instead of returning a clean auth error, so we
+        # pick the matching handler type in intercept_service below.
+        self._deny_unary_unary = grpc.unary_unary_rpc_method_handler(deny)
+        self._deny_unary_stream = grpc.unary_stream_rpc_method_handler(deny)
+
+    def _authorized(self, handler_call_details) -> bool:
+        if not cfg.SERVICE_TOKEN:
+            return cfg.ENVIRONMENT == "development"
+        metadata = dict(handler_call_details.invocation_metadata or [])
+        return hmac.compare_digest(metadata.get("x-service-token", ""), cfg.SERVICE_TOKEN)
+
+    def intercept_service(self, continuation, handler_call_details):
+        handler = continuation(handler_call_details)
+        if handler is None or self._authorized(handler_call_details):
+            return handler
+
+        return self._deny_unary_stream if handler.response_streaming else self._deny_unary_unary
+
+
 def serve(port: int | None = None) -> grpc.Server:
     """
     Start the gRPC search server.
@@ -244,11 +278,16 @@ def serve(port: int | None = None) -> grpc.Server:
     if port is None:
         port = cfg.GRPC_PORT
 
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=10),
+        interceptors=[_ServiceTokenInterceptor()],
+    )
     search_pb2_grpc.add_SearchServiceServicer_to_server(
         SearchServiceServicer(), server
     )
-    server.add_insecure_port(f"[::]:{port}")
+    # Bind to localhost only — this service is reached exclusively by the
+    # Node backend running on the same host/private network.
+    server.add_insecure_port(f"{cfg.GRPC_BIND_HOST}:{port}")
     server.start()
-    logger.info("=== Search gRPC server running on port %d ===", port)
+    logger.info("=== Search gRPC server running on %s:%d ===", cfg.GRPC_BIND_HOST, port)
     return server

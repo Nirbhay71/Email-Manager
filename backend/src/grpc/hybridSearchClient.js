@@ -20,10 +20,23 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
 const emailSearchV2Proto = protoDescriptor.emailsearch_v2;
 
-// The new hybrid search service runs on port 50052
+// The new hybrid search service runs on port 50052, bound to localhost by
+// the Python side — this backend is expected to run on the same host/private network.
 const HYBRID_SEARCH_GRPC_HOST = process.env.HYBRID_SEARCH_GRPC_HOST || "localhost:50052";
 
 export const hybridSearchClient = new emailSearchV2Proto.SearchService(
     HYBRID_SEARCH_GRPC_HOST,
     grpc.credentials.createInsecure()
 );
+
+/**
+ * Metadata carrying the shared service-to-service token, attached to every
+ * call the Python search service's _ServiceTokenInterceptor checks for.
+ */
+export function buildServiceMetadata() {
+    const metadata = new grpc.Metadata();
+    if (process.env.SERVICE_TOKEN) {
+        metadata.set("x-service-token", process.env.SERVICE_TOKEN);
+    }
+    return metadata;
+}

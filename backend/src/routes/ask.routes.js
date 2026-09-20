@@ -1,12 +1,10 @@
 import express from "express";
-import { hybridSearchClient } from "../grpc/hybridSearchClient.js";
+import { hybridSearchClient, buildServiceMetadata } from "../grpc/hybridSearchClient.js";
 import { ChatSession } from "../models/chatSession.model.js";
 
 const router = express.Router();
 
-router.get("/", (req, res) => {
-    res.redirect("/test-ai");
-});
+const MAX_QUESTION_LENGTH = 2000;
 
 /**
  * POST /ask
@@ -17,8 +15,11 @@ router.post("/", async (req, res) => {
     const { question, sessionId } = req.body;
     const userEmail = req.user.email; // from verified JWT — cannot be spoofed
 
-    if (!question) {
+    if (!question || typeof question !== "string") {
         return res.status(400).json({ error: "question is required" });
+    }
+    if (question.length > MAX_QUESTION_LENGTH) {
+        return res.status(400).json({ error: `question must be under ${MAX_QUESTION_LENGTH} characters` });
     }
 
     // Set Server-Sent Events (SSE) headers
@@ -40,7 +41,7 @@ router.post("/", async (req, res) => {
         user_email: userEmail,
         question: question,
         top_k: 5
-    });
+    }, buildServiceMetadata());
 
     let fullAiResponse = "";
     let finalSources = [];
@@ -81,7 +82,7 @@ router.post("/", async (req, res) => {
     } catch (err) {
         console.error("[/ask] gRPC stream error:", err);
         if (!res.writableEnded) {
-            res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+            res.write(`data: ${JSON.stringify({ error: "Something went wrong while generating a response." })}\n\n`);
             res.end();
         }
     } finally {

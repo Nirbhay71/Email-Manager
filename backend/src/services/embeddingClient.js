@@ -1,4 +1,4 @@
-import { hybridSearchClient } from "../grpc/hybridSearchClient.js";
+import { hybridSearchClient, buildServiceMetadata } from "../grpc/hybridSearchClient.js";
 
 /**
  * Invokes EmbedAndStore gRPC call on the Python search service.
@@ -12,7 +12,7 @@ export function embedAndStoreEmail({ messageId, userEmail, subject, body }) {
             body: body || ""
         };
 
-        hybridSearchClient.EmbedAndStore(payload, (err, response) => {
+        hybridSearchClient.EmbedAndStore(payload, buildServiceMetadata(), (err, response) => {
             if (err) {
                 console.error("[embeddingClient] gRPC call failed:", err);
                 return reject(err);

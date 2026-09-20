@@ -22,22 +22,23 @@ export const handleGmailWebhook = async (req, res) => {
             console.warn(`[webhook] no user record for ${emailAddress}`);
             return res.status(200).send("unknown user");
         }
+        const tokens = user.tokensPlain;
         const startHistoryId = user.historyId || newHistoryId;
-        const messageIds = await getNewMessagesSince(user.tokens, startHistoryId);
+        const messageIds = await getNewMessagesSince(tokens, startHistoryId);
         for (const id of messageIds) {
             const existingEmail = await Email.findOne({ messageId: id });
             if (existingEmail) continue;
 
             let msg;
             try {
-                msg = await getMessage(user.tokens, id);
+                msg = await getMessage(tokens, id);
             } catch (fetchErr) {
                 console.warn(`[webhook] Could not fetch message ${id}, skipping. Error: ${fetchErr.message}`);
                 continue;
             }
 
             console.log(`[webhook] new mail: "${msg.subject}" from ${msg.from}`);
-            const isoDate = extractDate(`${msg.subject} ${msg.body}`);
+            const isoDate = extractDate(`${msg.subject} ${msg.body}`, msg.receivedAt);
 
             let emailRecord;
             try {
@@ -73,7 +74,7 @@ export const handleGmailWebhook = async (req, res) => {
                 console.log("[webhook] no date found, skipping calendar+SMS");
                 continue;
             }
-            const event = await createDeadlineEvent(user.tokens, {
+            const event = await createDeadlineEvent(tokens, {
                 title: `Deadline: ${msg.subject}`,
                 isoDate,
                 description: `Auto-detected from email sent by ${msg.from}`

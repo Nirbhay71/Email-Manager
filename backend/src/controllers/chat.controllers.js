@@ -30,15 +30,22 @@ export const createSession = async (req, res) => {
     }
 };
 
+const ALLOWED_STATUSES = ["ACTIVE", "ARCHIVED", "SHARED"];
+
 export const updateSessionStatus = async (req, res) => {
     try {
+        const email = req.user.email; // from verified JWT
         const { id } = req.params;
         const { status } = req.body;
 
-        const session = await ChatSession.findByIdAndUpdate(
-            id,
+        if (!ALLOWED_STATUSES.includes(status)) {
+            return res.status(400).json({ error: "Invalid status" });
+        }
+
+        const session = await ChatSession.findOneAndUpdate(
+            { _id: id, userEmail: email },
             { status },
-            { new: true }
+            { new: true, runValidators: true }
         );
 
         if (!session) {

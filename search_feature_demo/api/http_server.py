@@ -11,14 +11,16 @@ logic lives in this file.
 
 from __future__ import annotations
 
+import hmac
 import logging
 import uuid
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+import config as cfg
 from pipeline.search_pipeline import get_search_pipeline
 from router.models import SearchResponse
 
@@ -49,6 +51,23 @@ class HealthResponse(BaseModel):
     version: str = "1.0.0"
 
 
+async def require_service_token(request: Request) -> None:
+    """
+    Verifies the shared X-Service-Token header sent by the Node backend.
+
+    Fails closed outside development: if SERVICE_TOKEN isn't configured,
+    every request is rejected rather than silently allowed through.
+    """
+    if not cfg.SERVICE_TOKEN:
+        if cfg.ENVIRONMENT == "development":
+            return
+        raise HTTPException(status_code=503, detail="Service not configured")
+
+    presented = request.headers.get("X-Service-Token", "")
+    if not hmac.compare_digest(presented, cfg.SERVICE_TOKEN):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 # ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
@@ -71,13 +90,15 @@ def create_app() -> FastAPI:
         version="1.0.0",
     )
 
-    # CORS — allow the existing Express frontend to call this service
+    # CORS — restricted to configured origins. This service is normally only
+    # called server-to-server by the Node backend (no browser origin at all);
+    # CORS_ALLOWED_ORIGINS exists for the rare case of direct browser access.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cfg.CORS_ALLOWED_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "X-Request-ID", "X-Service-Token"],
     )
 
     # ── Health check ────────────────────────────────────────────────────
@@ -93,7 +114,7 @@ def create_app() -> FastAPI:
 
     # ── Search endpoint ─────────────────────────────────────────────────
 
-    @app.post("/api/v1/search", response_model=SearchResponse)
+    @app.post("/api/v1/search", response_model=SearchResponse, dependencies=[Depends(require_service_token)])
     async def search(body: SearchRequest, request: Request):
         """
         Primary search endpoint.
@@ -134,12 +155,12 @@ def create_app() -> FastAPI:
             )
             return JSONResponse(
                 status_code=500,
-                content={"error": f"Internal search error: {str(exc)}"},
+                content={"error": "Internal search error", "request_id": request_id},
             )
 
     # ── Cache invalidation webhook ──────────────────────────────────────
 
-    @app.post("/api/v1/search/invalidate")
+    @app.post("/api/v1/search/invalidate", dependencies=[Depends(require_service_token)])
     async def invalidate_cache(request: Request):
         """
         Invalidate search cache for a user.

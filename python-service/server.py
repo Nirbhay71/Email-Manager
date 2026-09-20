@@ -1,3 +1,4 @@
+import hmac
 import os
 import sys
 import time
@@ -17,6 +18,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gRPCServer")
 
 GRPC_PORT = os.getenv("GRPC_PORT", "50051")
+# Bind to localhost only — this service is reached exclusively by the Node
+# backend running on the same host/private network.
+GRPC_BIND_HOST = os.getenv("GRPC_BIND_HOST", "127.0.0.1")
+SERVICE_TOKEN = os.getenv("SERVICE_TOKEN", "")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 try:
     import search_pb2
@@ -113,12 +119,43 @@ class EmailSearchServicer(search_pb2_grpc.EmailSearchServiceServicer):
             return
 
 
+class _ServiceTokenInterceptor(grpc.ServerInterceptor):
+    """Rejects any RPC without the shared 'x-service-token' metadata value."""
+
+    def __init__(self) -> None:
+        def deny(_request, context):
+            context.abort(grpc.StatusCode.UNAUTHENTICATED, "Unauthorized")
+
+        # EmbedAndStore is unary_unary, AskQuestion is unary_stream
+        # (server-streaming). Denying a streaming call with a unary_unary
+        # handler mismatches the RPC's actual shape and breaks the call
+        # outright instead of returning a clean auth error.
+        self._deny_unary_unary = grpc.unary_unary_rpc_method_handler(deny)
+        self._deny_unary_stream = grpc.unary_stream_rpc_method_handler(deny)
+
+    def _authorized(self, handler_call_details) -> bool:
+        if not SERVICE_TOKEN:
+            return ENVIRONMENT == "development"
+        metadata = dict(handler_call_details.invocation_metadata or [])
+        return hmac.compare_digest(metadata.get("x-service-token", ""), SERVICE_TOKEN)
+
+    def intercept_service(self, continuation, handler_call_details):
+        handler = continuation(handler_call_details)
+        if handler is None or self._authorized(handler_call_details):
+            return handler
+
+        return self._deny_unary_stream if handler.response_streaming else self._deny_unary_unary
+
+
 def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=10),
+        interceptors=[_ServiceTokenInterceptor()],
+    )
     search_pb2_grpc.add_EmailSearchServiceServicer_to_server(EmailSearchServicer(), server)
-    server.add_insecure_port(f"[::]:{GRPC_PORT}")
+    server.add_insecure_port(f"{GRPC_BIND_HOST}:{GRPC_PORT}")
     server.start()
-    logger.info(f"=== Python gRPC Search Server running on port {GRPC_PORT} ===")
+    logger.info(f"=== Python gRPC Search Server running on {GRPC_BIND_HOST}:{GRPC_PORT} ===")
     try:
         while True:
             time.sleep(86400)  # Keep alive
