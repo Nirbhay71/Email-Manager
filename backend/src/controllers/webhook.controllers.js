@@ -38,7 +38,7 @@ export const handleGmailWebhook = async (req, res) => {
             }
 
             console.log(`[webhook] new mail: "${msg.subject}" from ${msg.from}`);
-            const isoDate = extractDate(`${msg.subject} ${msg.body}`);
+            const isoDate = extractDate(`${msg.subject} ${msg.body}`, msg.receivedAt);
 
             let emailRecord;
             try {

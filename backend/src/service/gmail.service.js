@@ -54,7 +54,11 @@ export async function getMessage(tokens, messageId) {
     const subject = headers.find((h)=> h.name === "Subject")?.value || "";
     const from = headers.find((h)=> h.name === "From")?.value || "";
     const body = extractPlainText(res.data.payload);
-    return {id: messageId, subject, from, body};
+    // Gmail's own receipt timestamp — used as the reference point for
+    // relative dates ("tomorrow") found in the email, so they resolve
+    // against when the email was sent, not whenever this is processed.
+    const receivedAt = res.data.internalDate ? new Date(Number(res.data.internalDate)) : new Date();
+    return {id: messageId, subject, from, body, receivedAt};
 }
 
 function extractPlainText(payload){
