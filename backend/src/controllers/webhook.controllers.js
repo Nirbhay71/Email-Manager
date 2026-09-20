@@ -4,7 +4,7 @@ import { getNewMessagesSince, getMessage } from "../service/gmail.service.js";
 import { extractDate } from "../service/dateExtractor.service.js";
 import { createDeadlineEvent } from "../service/calendar.service.js";
 import { sendTestSms } from "../service/sms.service.js";
-import { embedAndStoreEmail } from "../services/embeddingClient.js";
+import { embedAndStoreEmail } from "../service/embeddingClient.js";
 
 export const handleGmailWebhook = async (req, res) => {
     try {
