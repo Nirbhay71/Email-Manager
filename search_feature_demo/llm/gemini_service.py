@@ -9,7 +9,7 @@ logger = logging.getLogger("GeminiService")
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not API_KEY or API_KEY == "YOUR_GEMINI_API_KEY_HERE":
-    logger.warning("GEMINI_API_KEY is not set! Set it in python-service/.env")
+    logger.warning("GEMINI_API_KEY is not set! Set it in search_feature_demo/.env")
 
 client = genai.Client(api_key=API_KEY) if API_KEY else None
 
@@ -19,7 +19,7 @@ def stream_answer(question: str, context_emails: list[dict]):
     Yields chunks of generated text as strings.
     """
     if not client:
-        yield "Gemini API key is missing. Please configure GEMINI_API_KEY in python-service/.env."
+        yield "Gemini API key is missing. Please configure GEMINI_API_KEY in search_feature_demo/.env."
         return
 
     context_text = ""

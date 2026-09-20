@@ -126,19 +126,25 @@ class _ServiceTokenInterceptor(grpc.ServerInterceptor):
         def deny(_request, context):
             context.abort(grpc.StatusCode.UNAUTHENTICATED, "Unauthorized")
 
-        self._deny_handler = grpc.unary_unary_rpc_method_handler(deny)
+        # EmbedAndStore is unary_unary, AskQuestion is unary_stream
+        # (server-streaming). Denying a streaming call with a unary_unary
+        # handler mismatches the RPC's actual shape and breaks the call
+        # outright instead of returning a clean auth error.
+        self._deny_unary_unary = grpc.unary_unary_rpc_method_handler(deny)
+        self._deny_unary_stream = grpc.unary_stream_rpc_method_handler(deny)
+
+    def _authorized(self, handler_call_details) -> bool:
+        if not SERVICE_TOKEN:
+            return ENVIRONMENT == "development"
+        metadata = dict(handler_call_details.invocation_metadata or [])
+        return hmac.compare_digest(metadata.get("x-service-token", ""), SERVICE_TOKEN)
 
     def intercept_service(self, continuation, handler_call_details):
-        if not SERVICE_TOKEN:
-            if ENVIRONMENT == "development":
-                return continuation(handler_call_details)
-            return self._deny_handler
+        handler = continuation(handler_call_details)
+        if handler is None or self._authorized(handler_call_details):
+            return handler
 
-        metadata = dict(handler_call_details.invocation_metadata or [])
-        if not hmac.compare_digest(metadata.get("x-service-token", ""), SERVICE_TOKEN):
-            return self._deny_handler
-
-        return continuation(handler_call_details)
+        return self._deny_unary_stream if handler.response_streaming else self._deny_unary_unary
 
 
 def serve():

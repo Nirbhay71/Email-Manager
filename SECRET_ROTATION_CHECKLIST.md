@@ -2,7 +2,7 @@
 
 This is a manual checklist — none of these steps can be done by an
 assistant on your behalf; they require access to your Google Cloud,
-Twilio, and Gemini accounts, and to wherever `backend/.env`,
+Twilio, and Gemini accounts, and to wherever `backend/src/.env`,
 `classifier-service/.env`, `search_feature_demo/.env`, and
 `python-service/.env` actually live.
 
@@ -18,7 +18,7 @@ update it everywhere it's used, then revoke the old one:
 - [ ] **Twilio auth token** (`TWILIO_AUTH_TOKEN`) — Twilio Console → Account → API keys & tokens → regenerate.
 - [ ] **MongoDB URI credentials** (`MONGO_URI`) — if it embeds a username/password, rotate the DB user's password.
 - [ ] **Gemini API key** (`GEMINI_API_KEY`) — Google AI Studio / Cloud Console → regenerate key, delete the old one.
-- [ ] Remove the commented-out Twilio credentials sitting in `backend/.env` — a commented secret is still a secret on disk.
+- [ ] Remove the commented-out Twilio credentials sitting in `backend/src/.env` — a commented secret is still a secret on disk.
 
 ## 2. Regenerate `JWT_ACCESS_SECRET`
 
@@ -44,7 +44,7 @@ New in this round of fixes: Google OAuth tokens are now encrypted at rest
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Put the output in `backend/.env` as `TOKEN_ENCRYPTION_KEY`. **Do this before
+Put the output in `backend/src/.env` as `TOKEN_ENCRYPTION_KEY`. **Do this before
 starting the backend** — without it, `user.tokensPlain` throws instead of
 silently storing plaintext.
 
@@ -65,7 +65,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 Put the **same value** in all three places:
-- `backend/.env` → `SERVICE_TOKEN`
+- `backend/src/.env` → `SERVICE_TOKEN`
 - `search_feature_demo/.env` → `SERVICE_TOKEN`
 - `python-service/.env` → `SERVICE_TOKEN`
 
@@ -84,7 +84,7 @@ all**. It now requires:
 - `PUBSUB_SERVICE_ACCOUNT_EMAIL` — the service account your push
   subscription authenticates as.
 
-Both must be set in `backend/.env` outside `NODE_ENV=development`, or the
+Both must be set in `backend/src/.env` outside `NODE_ENV=development`, or the
 webhook returns 503 and Gmail push notifications stop working. See
 [Google's Pub/Sub push authentication docs](https://cloud.google.com/pubsub/docs/push)
 for how to configure the subscription itself to send a signed OIDC token.
