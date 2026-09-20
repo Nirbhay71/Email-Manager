@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../utils/api.ts";
 import svgPaths from "./svg-nwc2hakocy";
+import NavRail from "../../components/NavRail.tsx";
 import imgUser from "./4a1497f7eb1ac52188d5053d788a4d72df0d0413.png";
 import imgAb6AXuDvbHxrbuVhg1CxgVRnp3GbZa4Old7KtXqrMAhKYb7FCCtfyTb9Mmx6B289OHbPoeKin4Fz3F4BSniJvKooKl4OpOjrdoydQj15Jf1UjmainIiccvmtNoD8VwOgXcTm6L8TkRw3IaiG6GfqPmsIimxmMOck56Plr4ReE6Col2PMe1AGnWl3TyZlbJmceSWtJnBozL4JfLvAeRuOfuQ4FMy7O4SbG5ShWyGkBfONvB131Mkf91 from "./5c4ad065e5f19199a785d71e4c5d61062d7e3cb5.png";
 import imgAb6AXuDqO7V5AwAyx2ZssExUwt8II0VjALmOfiNk1Z6Fdyr7CcsD1Nfg4GqYYtwq4UnEqAwjoZwnzOUe3JpQrkN7Yz2Y3IejFueTwGbGpL3EVmidjGz7CkdSzQkUt8Zp3U6J9JeBq24T1DTdiC1HbRgnUyxoD54QqTuExkM48WBbAsTScJcEYqGAxDf2Qs6GJyNq6VocoYmJfXXrRxOw8U5Padx0LybFxXqhYuP8424QvwFfqDgr8J from "./d513c005e3f5d6265cd28b326d58c875870f48b6.png";
@@ -532,8 +533,6 @@ function Container6() {
   return (
     <div className="content-stretch flex gap-[16px] items-center relative shrink-0" data-name="Container">
       <WeatherWidget />
-      <SearchBar />
-      <SecondaryIcons />
     </div>
   );
 }
@@ -2687,7 +2686,7 @@ function ExpandControlBottomRightFloating() {
 export default function HtmlBody() {
   return (
     <div className="content-stretch flex gap-[16px] items-start p-[16px] relative size-full" style={{ backgroundImage: "linear-gradient(90deg, rgb(226, 228, 231) 0%, rgb(226, 228, 231) 100%), linear-gradient(90deg, rgb(255, 255, 255) 0%, rgb(255, 255, 255) 100%)" }} data-name="Html → Body">
-      <AsideLeftSidebar />
+      <NavRail active="inbox" />
       <MainDashboardContent />
     </div>
   );

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import svgPaths from "../imports/Html→Body-2/svg-9eyoj0uxqg";
-import imgAiAssistant from "../imports/Html→Body-2/09d34397fc5dfe77be0866af9c35f049cbca10fe.png";
 import imgUserAvatar from "../imports/Html→Body-2/3d16bb95b2a6f2c06c620b3e84b11991da111c9a.png";
 import { apiFetch } from "../utils/api.ts";
-import NavRail, { Avatar, getStoredUser } from "../components/NavRail.tsx";
+import NavRail, { Avatar, AssistantIcon, getStoredUser } from "../components/NavRail.tsx";
 
 // ── Weather description → simple label ───────────────────────────────────────
 function wmoLabel(code: number): string {
@@ -148,19 +147,6 @@ function TopHeader({ weather }: { weather: WeatherData | null }) {
             </span>
           </div>
         </div>
-        {/* Search */}
-        <div className="relative w-[256px] shrink-0">
-          <div className="bg-white rounded-full shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-full">
-            <div className="flex items-center px-[48px] py-[13px]">
-              <span className="font-['Inter:Regular',sans-serif] font-normal text-[#6b7280] text-[14px] leading-normal">Type searching...</span>
-            </div>
-          </div>
-          <div className="absolute left-[20px] top-1/2 -translate-y-1/2">
-            <svg fill="none" viewBox="0 0 16 16" width="16" height="16">
-              <path d={svgPaths.p2aa1a600} stroke="#9CA3AF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.33333" />
-            </svg>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -289,7 +275,7 @@ function ChatWorkspace({ userEmail, messages, setMessages, isStreaming, setIsStr
       <div className="flex items-center justify-between px-[32px] pt-[24px] pb-[25px] border-b border-[#f3f4f6] shrink-0">
         <div className="flex items-center gap-[16px]">
           <div className="bg-[#f9fafb] border border-[#f3f4f6] rounded-[24px] w-[48px] h-[48px] flex items-center justify-center shrink-0">
-            <img alt="" className="w-[32px] h-[32px] object-contain" src={imgAiAssistant} />
+            <AssistantIcon size={26} />
           </div>
           <div>
             <p className="font-['Inter:Bold',sans-serif] font-bold text-[20px] text-black leading-[28px]">Itatshu, Your AI assistant</p>
@@ -323,7 +309,7 @@ function ChatWorkspace({ userEmail, messages, setMessages, isStreaming, setIsStr
             {msg.role === "ai" ? (
               <div className="flex items-start gap-[16px] px-[32px] pt-[24px] pb-[8px]">
                 <div className="bg-[#f3f4f6] border border-[#e5e7eb] rounded-[8px] w-[32px] h-[32px] flex items-center justify-center shrink-0 mt-[2px]">
-                  <img alt="" className="w-[20px] h-[20px] object-contain" src={imgAiAssistant} />
+                  <AssistantIcon size={18} />
                 </div>
                 <div className="bg-[#f9fafb] border border-[#f3f4f6] rounded-bl-[32px] rounded-br-[32px] rounded-tr-[32px] px-[25px] pt-[20px] pb-[20px] max-w-[600px]">
                   <p className="font-['Inter:Regular',sans-serif] font-normal text-[#374151] text-[14px] leading-[22px] whitespace-pre-wrap">

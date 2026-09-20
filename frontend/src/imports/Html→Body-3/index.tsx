@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import NavRail from "../../components/NavRail.tsx";
 import { apiFetch } from "../../utils/api.ts";
 import svgPaths from "./svg-akbvvdwpgd";
 import inboxSvgPaths from "../Html→Body-1/svg-nwc2hakocy";
@@ -1596,7 +1597,7 @@ export default function HtmlBody() {
     <div className="content-stretch flex flex-col items-start pb-[148px] pl-[128px] pt-[112px] relative size-full" style={{ backgroundImage: "url(\"data:image/svg+xml;utf8,<svg viewBox='0 0 1280 928' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(181.02 0 0 131.24 0 0)'><stop stop-color='rgba(16,15,21,0.05)' offset='0'/><stop stop-color='rgba(16,15,21,0)' offset='0.5'/></radialGradient></defs></svg>\"), url(\"data:image/svg+xml;utf8,<svg viewBox='0 0 1280 928' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(90.51 0 0 131.24 640 0)'><stop stop-color='rgba(47,62,106,0.02)' offset='0'/><stop stop-color='rgba(47,62,106,0)' offset='0.5'/></radialGradient></defs></svg>\"), url(\"data:image/svg+xml;utf8,<svg viewBox='0 0 1280 928' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(181.02 0 0 131.24 1280 0)'><stop stop-color='rgba(114,39,65,0.02)' offset='0'/><stop stop-color='rgba(114,39,65,0)' offset='0.5'/></radialGradient></defs></svg>\"), linear-gradient(90deg, rgb(240, 241, 243) 0%, rgb(240, 241, 243) 100%), linear-gradient(90deg, rgb(255, 255, 255) 0%, rgb(255, 255, 255) 100%)" }} data-name="Html → Body">
       <MainMainContent events={events} anchorDate={anchorDate} viewMode={viewMode} />
       <HeaderHeaderArea viewMode={viewMode} setViewMode={setViewMode} onPrev={handlePrev} onNext={handleNext} />
-      <AsideSidebarNavigation />
+      <NavRail active="management" reserve={false} />
     </div>
   );
 }

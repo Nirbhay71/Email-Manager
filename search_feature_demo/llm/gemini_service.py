@@ -1,6 +1,8 @@
 import logging
 import os
+import re
 import threading
+import time
 
 from google import genai
 from dotenv import load_dotenv
@@ -42,38 +44,77 @@ if not _clients:
 
 # Rotation state, shared across requests within this process.
 # `_current_index` is the key tried first on the next call (stays put while
-# it keeps working). `_exhausted` holds indices whose quota has been hit —
-# skipped until the process restarts, since Gemini quotas are typically
-# daily/per-minute windows we have no reliable reset timestamp for here.
+# it keeps working). `_cooldown_until` maps a key's index to the time
+# (time.monotonic()) before which it is skipped after hitting its quota, so a
+# per-minute limit recovers on its own instead of sidelining the key until
+# the process restarts.
 _lock = threading.Lock()
 _current_index = 0
-_exhausted: set[int] = set()
+_cooldown_until: dict[int, float] = {}
+
+DEFAULT_COOLDOWN_S = float(os.getenv("GEMINI_KEY_COOLDOWN_SECONDS", "300"))
+DAILY_COOLDOWN_S = 3600.0  # daily quotas don't reset for hours; recheck hourly
+
+_RETRY_DELAY_RE = re.compile(r"retry(?:\s+in|Delay['\"]?\s*[:=]\s*['\"]?)\s*([0-9]+(?:\.[0-9]+)?)\s*s", re.IGNORECASE)
+_HTTP_429_RE = re.compile(r"(?<![0-9])429(?![0-9])")
 
 
 def _is_quota_error(exc: Exception) -> bool:
     """
-    Best-effort detection of a rate-limit / quota-exceeded error. Checks
-    common google-genai error attributes first, then falls back to matching
-    the error text, so this doesn't depend on one exact SDK version's
-    exception shape.
+    True only for a genuine rate-limit / quota-exhausted response.
+
+    google-genai API errors carry a numeric `code` (HTTP status) and a `status`
+    string; when either is present we trust it and nothing else, so a 500 or
+    400 whose message merely mentions "quota" or contains "429" is not treated
+    as exhaustion. Only exceptions without a structured code (e.g. a wrapped
+    transport error) fall back to matching text, and then only for the two
+    exact markers Google uses.
     """
     code = getattr(exc, "code", None)
     status = str(getattr(exc, "status", "") or "").upper()
-    if code == 429 or status in ("RESOURCE_EXHAUSTED", "429"):
-        return True
-    text = str(exc).upper()
-    return "RESOURCE_EXHAUSTED" in text or "429" in text or "QUOTA" in text
+    if isinstance(code, int):
+        return code == 429
+    if status:
+        return status == "RESOURCE_EXHAUSTED"
+    text = str(exc)
+    return "RESOURCE_EXHAUSTED" in text.upper() or bool(_HTTP_429_RE.search(text))
+
+
+def _cooldown_seconds(exc: Exception) -> float:
+    """How long to keep a key out of rotation: the server's own retry hint if
+    it gave one, an hour for a per-day quota, otherwise the default."""
+    text = str(exc)
+    match = _RETRY_DELAY_RE.search(text)
+    if match:
+        return max(float(match.group(1)) + 2.0, 5.0)
+    if "PERDAY" in text.upper().replace(" ", "").replace("_", ""):
+        return DAILY_COOLDOWN_S
+    return DEFAULT_COOLDOWN_S
+
+
+def _mark_exhausted(key_index: int, exc: Exception) -> None:
+    with _lock:
+        _cooldown_until[key_index] = time.monotonic() + _cooldown_seconds(exc)
 
 
 def _candidate_keys():
-    """Yields (index, client) starting from the current key, rotating
-    through the rest, skipping any already marked exhausted."""
+    """Yields (index, client) starting from the current key, rotating through
+    the rest, skipping any key still cooling down after a quota error."""
+    now = time.monotonic()
     with _lock:
         start = _current_index
+        cooling = {i for i, until in _cooldown_until.items() if until > now}
     for offset in range(len(_clients)):
         idx = (start + offset) % len(_clients)
-        if idx not in _exhausted:
+        if idx not in cooling:
             yield idx, _clients[idx]
+
+
+def _minutes_until_a_key_recovers() -> int:
+    now = time.monotonic()
+    with _lock:
+        waits = [until - now for until in _cooldown_until.values() if until > now]
+    return max(1, round(min(waits) / 60)) if waits else 1
 
 
 def stream_answer(question: str, context_emails: list[dict]):
@@ -126,8 +167,8 @@ Answer:"""
         except Exception as e:
             if _is_quota_error(e):
                 logger.warning(f"Gemini API key #{key_index + 1} hit its quota — rotating to the next key.")
+                _mark_exhausted(key_index, e)
                 with _lock:
-                    _exhausted.add(key_index)
                     _current_index = (key_index + 1) % len(_clients)
                 if yielded_any:
                     # Already streamed part of an answer on this key — don't
@@ -141,4 +182,7 @@ Answer:"""
             return
 
     logger.error("All configured Gemini API keys have reached their quota.")
-    yield "Out of tokens: all configured Gemini API keys have reached their quota limit. Please try again later."
+    yield (
+        "Out of tokens: all configured Gemini API keys have reached their quota limit. "
+        f"Please try again in about {_minutes_until_a_key_recovers()} min."
+    )
