@@ -1,22 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import svgPaths from "../imports/Html→Body-2/svg-9eyoj0uxqg";
-import imgUser from "../imports/Html→Body-2/4a1497f7eb1ac52188d5053d788a4d72df0d0413.png";
 import imgAiAssistant from "../imports/Html→Body-2/09d34397fc5dfe77be0866af9c35f049cbca10fe.png";
 import imgUserAvatar from "../imports/Html→Body-2/3d16bb95b2a6f2c06c620b3e84b11991da111c9a.png";
 import { apiFetch } from "../utils/api.ts";
-
-function getStoredUser(): { email?: string; avatar?: string; name?: string } {
-  if (typeof window === "undefined") return {};
-  try { return JSON.parse(window.localStorage.getItem("user") || "{}"); }
-  catch { return {}; }
-}
-
-function goTo(path: string) {
-  if (window.location.pathname !== path || window.location.search) {
-    window.history.pushState({}, "", path);
-    window.dispatchEvent(new PopStateEvent("popstate"));
-  }
-}
+import NavRail, { Avatar, getStoredUser } from "../components/NavRail.tsx";
 
 // ── Weather description → simple label ───────────────────────────────────────
 function wmoLabel(code: number): string {
@@ -43,6 +30,7 @@ interface ChatSession {
   title: string;
   status: "ACTIVE" | "ARCHIVED" | "SHARED";
   updatedAt: string;
+  messages?: { role: MessageRole; content: string; timestamp: string }[];
 }
 type MessageRole = "user" | "ai";
 interface Message {
@@ -112,52 +100,6 @@ function formatSessionDate(iso: string): string {
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-// ── LEFT NAV RAIL ─────────────────────────────────────────────────────────────
-function NavRail() {
-  const user = getStoredUser();
-  return (
-    <div className="bg-white rounded-[32px] drop-shadow-[0px_1px_1px_rgba(0,0,0,0.05)] sticky top-[16px] h-[calc(100vh-32px)] w-[80px] shrink-0 flex flex-col items-center justify-between py-[32px]">
-      <div className="flex flex-col items-center gap-[40px]">
-        {/* Logo */}
-        <div className="bg-black rounded-full w-[40px] h-[40px] flex items-center justify-center shrink-0">
-          <span className="font-['Inter:Bold',sans-serif] font-bold text-white text-[20px] leading-[28px]">C</span>
-        </div>
-        {/* Nav Icons */}
-        <div className="flex flex-col gap-[24px] items-center w-[40px]">
-          <button onClick={() => goTo("/inbox")} className="rounded-[12px] w-full p-[8px] hover:bg-black/10 transition">
-            <svg fill="none" viewBox="0 0 24 24" width="24" height="24">
-              <path d={svgPaths.p42a6600} stroke="#9CA3AF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-            </svg>
-          </button>
-          <button onClick={() => goTo("/management")} className="rounded-[12px] w-full p-[8px] hover:bg-black/10 transition">
-            <svg fill="none" viewBox="0 0 24 24" width="24" height="24">
-              <path d={svgPaths.p12978b80} stroke="#9CA3AF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-            </svg>
-          </button>
-          <button onClick={() => goTo("/ai-chat")} className="bg-black rounded-[12px] w-full p-[8px]">
-            <svg fill="none" viewBox="0 0 24 24" width="24" height="24">
-              <path d={svgPaths.p2373ef00} stroke="white" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      {/* User Avatar */}
-      <div className="flex flex-col items-center gap-[16px]">
-        <div className="relative shrink-0">
-          <div className="w-[40px] h-[40px] rounded-full overflow-hidden relative">
-            <img alt="" className="absolute left-0 top-0 w-full h-full object-cover" src={user.avatar || imgUser} />
-            <div className="absolute inset-0 border-2 border-white rounded-full pointer-events-none" />
-          </div>
-          <div className="absolute bottom-[-4px] right-[-4px] w-[12px] h-[12px] bg-[#22c55e] rounded-full border-2 border-white" />
-        </div>
-        <span className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[#6b7280] text-[10px] leading-[15px]">
-          {user.name ? user.name.split(" ")[0] : "Profile"}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 // ── TOP HEADER ────────────────────────────────────────────────────────────────
 function TopHeader({ weather }: { weather: WeatherData | null }) {
   const now = new Date();
@@ -225,30 +167,20 @@ function TopHeader({ weather }: { weather: WeatherData | null }) {
 }
 
 // ── CHAT WORKSPACE ────────────────────────────────────────────────────────────
-function ChatWorkspace({ userEmail }: { userEmail?: string }) {
+interface ChatWorkspaceProps {
+  userEmail?: string;
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  isStreaming: boolean;
+  setIsStreaming: (v: boolean) => void;
+  activeId: string | null;
+  setActiveId: (id: string | null) => void;
+  onSessionsChanged: () => void;
+}
+
+function ChatWorkspace({ userEmail, messages, setMessages, isStreaming, setIsStreaming, activeId, setActiveId, onSessionsChanged }: ChatWorkspaceProps) {
   const user = getStoredUser();
   const [inputValue, setInputValue] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "seed-ai-1",
-      role: "ai",
-      content: "Hello Alex. I've analyzed the recent performance reports for Project Phoenix.\nWould you like a summary of the quarterly milestones or a deep dive into the resource allocation?",
-      timestamp: new Date("2024-01-01T10:24:00"),
-    },
-    {
-      id: "seed-user-1",
-      role: "user",
-      content: "Show me the resource allocation. Specifically, I'm concerned about the dev-ops burn rate over the last 14 days.",
-      timestamp: new Date("2024-01-01T10:25:00"),
-    },
-    {
-      id: "seed-ai-2",
-      role: "ai",
-      content: "Analyzing the logs... DevOps burn rate increased by 14.2% since Tuesday. This correlates with the migration of the staging environment.",
-      timestamp: new Date("2024-01-01T10:25:30"),
-    },
-  ]);
-  const [isStreaming, setIsStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new messages
@@ -264,6 +196,21 @@ function ChatWorkspace({ userEmail }: { userEmail?: string }) {
 
     setInputValue("");
     setIsStreaming(true);
+
+    // First message of a new chat: create the session (titled from the question) so it is saved to History
+    let sessionId = activeId;
+    if (!sessionId) {
+      try {
+        const created = await apiFetch("/chat/sessions", {
+          method: "POST",
+          body: JSON.stringify({ title: question.length > 48 ? `${question.slice(0, 48)}…` : question }),
+        });
+        if (created.ok) {
+          sessionId = (await created.json())._id;
+          setActiveId(sessionId);
+        }
+      } catch { /* chat still works, it just won't be saved */ }
+    }
 
     // Append user message
     const userMsg: Message = {
@@ -282,7 +229,7 @@ function ChatWorkspace({ userEmail }: { userEmail?: string }) {
       // No userEmail in body — backend reads it from the JWT cookie
       const res = await apiFetch('/ask', {
         method: "POST",
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, sessionId }),
       });
 
       if (!res.ok || !res.body) throw new Error(`Server error ${res.status}`);
@@ -323,6 +270,7 @@ function ChatWorkspace({ userEmail }: { userEmail?: string }) {
       // Mark streaming done
       setMessages(prev => prev.map(m => m.id === aiId ? { ...m, streaming: false } : m));
       setIsStreaming(false);
+      onSessionsChanged();
     }
   };
 
@@ -362,6 +310,14 @@ function ChatWorkspace({ userEmail }: { userEmail?: string }) {
 
       {/* Messages */}
       <div className="flex-1 overflow-auto px-0 py-0">
+        {messages.length === 0 && (
+          <div className="h-full flex flex-col items-center justify-center text-center px-[32px] gap-[8px]">
+            <p className="font-['Inter:Bold',sans-serif] font-bold text-[18px] text-black">Ask anything about your emails</p>
+            <p className="font-['Inter:Regular',sans-serif] text-[14px] text-[#9ca3af] max-w-[420px]">
+              Search deadlines, senders or topics. Your conversations are saved to History on the right.
+            </p>
+          </div>
+        )}
         {messages.map((msg) => (
           <div key={msg.id}>
             {msg.role === "ai" ? (
@@ -394,7 +350,7 @@ function ChatWorkspace({ userEmail }: { userEmail?: string }) {
                   </p>
                 </div>
                 <div className="w-[32px] h-[32px] rounded-full overflow-hidden shrink-0 border-2 border-white shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] mt-[2px]">
-                  <img alt="" className="w-full h-full object-cover" src={user.avatar || imgUserAvatar} />
+                  <Avatar src={user.avatar || imgUserAvatar} className="w-full h-full object-cover" />
                 </div>
               </div>
             )}
@@ -416,7 +372,7 @@ function ChatWorkspace({ userEmail }: { userEmail?: string }) {
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about your projects..."
+            placeholder="Ask about your emails..."
             disabled={isStreaming}
             className="flex-1 px-[16px] bg-transparent outline-none font-['Inter:Regular',sans-serif] font-normal text-[#374151] text-[14px] placeholder-[#9ca3af] disabled:opacity-50"
           />
@@ -436,58 +392,68 @@ function ChatWorkspace({ userEmail }: { userEmail?: string }) {
 }
 
 // ── HISTORY PANEL ─────────────────────────────────────────────────────────────
-function HistoryPanel({ sessions, loading }: { sessions: ChatSession[]; loading: boolean }) {
-  // Status badge colour mapping
-  const badgeColor: Record<string, string> = {
-    ACTIVE: "text-[#9ca3af]",
-    ARCHIVED: "text-[#9ca3af]",
-    SHARED: "text-[#9ca3af]",
-  };
+interface HistoryPanelProps {
+  sessions: ChatSession[];
+  loading: boolean;
+  activeId: string | null;
+  disabled: boolean;
+  onSelect: (s: ChatSession) => void;
+  onNew: () => void;
+}
 
+function HistoryPanel({ sessions, loading, activeId, disabled, onSelect, onNew }: HistoryPanelProps) {
   return (
     <div className="shrink-0 w-[270px] h-full">
       <div className="backdrop-blur-[5px] bg-[rgba(255,255,255,0.7)] rounded-[40px] border border-[rgba(255,255,255,0.3)] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] h-full flex flex-col p-[33px] overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between mb-[24px] shrink-0">
           <h2 className="font-['Inter:Bold',sans-serif] font-bold text-[20px] text-black leading-[28px]">History</h2>
-          <svg fill="none" viewBox="0 0 20 20" width="20" height="20">
-            <path d={svgPaths.p2016ab00} stroke="#D1D5DB" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.66667" />
-          </svg>
+          <button
+            onClick={onNew}
+            disabled={disabled}
+            title="New chat"
+            className="w-[32px] h-[32px] rounded-full bg-black text-white flex items-center justify-center text-[20px] leading-none hover:opacity-80 disabled:opacity-40 transition"
+            type="button"
+          >
+            +
+          </button>
         </div>
 
-        {/* Cards list */}
         <div className="flex flex-col gap-[16px] overflow-y-auto">
-          {loading && (
+          {loading && sessions.length === 0 && (
             <p className="font-['Inter:Regular',sans-serif] text-[#9ca3af] text-[12px]">Loading...</p>
           )}
 
           {!loading && sessions.length === 0 && (
-            <p className="font-['Inter:Regular',sans-serif] text-[#9ca3af] text-[12px]">No sessions yet.</p>
+            <p className="font-['Inter:Regular',sans-serif] text-[#9ca3af] text-[12px]">No conversations yet. Ask something to start one.</p>
           )}
 
-          {sessions.map((session, i) => {
-            const isFirst = i === 0;
+          {sessions.map((session) => {
+            const isActive = session._id === activeId;
             return (
-              <div
+              <button
                 key={session._id}
+                onClick={() => onSelect(session)}
+                disabled={disabled}
+                type="button"
                 className={
-                  isFirst
-                    ? "bg-black rounded-[32px] p-[20px] shadow-[0px_20px_25px_-5px_rgba(0,0,0,0.1),0px_8px_10px_-6px_rgba(0,0,0,0.1)] shrink-0"
-                    : "bg-[rgba(255,255,255,0.5)] border border-[#f3f4f6] rounded-[32px] p-[21px] shrink-0"
+                  (isActive
+                    ? "bg-black rounded-[32px] p-[20px] shadow-[0px_20px_25px_-5px_rgba(0,0,0,0.1),0px_8px_10px_-6px_rgba(0,0,0,0.1)]"
+                    : "bg-[rgba(255,255,255,0.5)] border border-[#f3f4f6] rounded-[32px] p-[21px] hover:bg-white") +
+                  " shrink-0 text-left w-full transition disabled:cursor-not-allowed"
                 }
               >
-                <p className={`font-['Inter:${isFirst ? "Bold" : "Semi_Bold"}',sans-serif] font-${isFirst ? "bold" : "semibold"} text-[14px] leading-[20px] mb-[12px] ${isFirst ? "text-white" : "text-[#374151]"}`}>
+                <p className={`font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] leading-[20px] mb-[12px] line-clamp-2 ${isActive ? "text-white" : "text-[#374151]"}`}>
                   {session.title}
                 </p>
                 <div className="flex items-center justify-between">
-                  <span className={`font-['Inter:Bold',sans-serif] font-bold text-[10px] uppercase leading-[15px] ${isFirst ? "text-[#9ca3af]" : badgeColor[session.status]}`}>
-                    {session.status}
+                  <span className="font-['Inter:Bold',sans-serif] font-bold text-[10px] uppercase leading-[15px] text-[#9ca3af]">
+                    {(session.messages?.length ?? 0)} msgs
                   </span>
-                  <span className={`font-['Inter:Regular',sans-serif] font-normal text-[10px] leading-[15px] ${isFirst ? "text-[#6b7280]" : "text-[#9ca3af]"}`}>
+                  <span className={`font-['Inter:Regular',sans-serif] font-normal text-[10px] leading-[15px] ${isActive ? "text-[#6b7280]" : "text-[#9ca3af]"}`}>
                     {formatSessionDate(session.updatedAt)}
                   </span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -513,17 +479,55 @@ function FloatingExpand() {
 export default function AIChatPage() {
   const user = getStoredUser();
   const weather = useWeather();
-  const { sessions, loading } = useSessions(); // no email needed
+  const { sessions, loading, refresh } = useSessions(); // no email needed
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+
+  const selectSession = (session: ChatSession) => {
+    if (isStreaming) return;
+    setActiveId(session._id);
+    setMessages(
+      (session.messages ?? []).map((m, i) => ({
+        id: `${session._id}-${i}`,
+        role: m.role,
+        content: m.content,
+        timestamp: new Date(m.timestamp),
+      }))
+    );
+  };
+
+  const newChat = () => {
+    if (isStreaming) return;
+    setActiveId(null);
+    setMessages([]);
+  };
 
   return (
     <div className="w-full min-h-screen relative" style={{ background: "rgb(226,228,231)" }}>
       <div className="flex gap-[16px] items-start p-[16px] w-full h-screen">
-        <NavRail />
+        <NavRail active="ai-chat" />
         <div className="flex flex-col flex-1 min-w-0 gap-[24px] h-full overflow-hidden">
           <TopHeader weather={weather} />
           <div className="flex gap-[24px] flex-1 min-h-0 overflow-hidden">
-            <ChatWorkspace userEmail={user.email} />
-            <HistoryPanel sessions={sessions} loading={loading} />
+            <ChatWorkspace
+              userEmail={user.email}
+              messages={messages}
+              setMessages={setMessages}
+              isStreaming={isStreaming}
+              setIsStreaming={setIsStreaming}
+              activeId={activeId}
+              setActiveId={setActiveId}
+              onSessionsChanged={refresh}
+            />
+            <HistoryPanel
+              sessions={sessions}
+              loading={loading}
+              activeId={activeId}
+              disabled={isStreaming}
+              onSelect={selectSession}
+              onNew={newChat}
+            />
           </div>
         </div>
       </div>

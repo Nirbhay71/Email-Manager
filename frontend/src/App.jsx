@@ -3,6 +3,7 @@ import GeneratedLoginPage from './pages/LoginPage.tsx'
 import InboxPage from './pages/InboxPage.tsx'
 import AIChatPage from './pages/AIChatPage.tsx'
 import ManagementPage from './pages/ManagementPage.tsx'
+import ProfilePage from './pages/ProfilePage.tsx'
 import { apiFetch, BACKEND } from './utils/api.ts'
 
 function navigate(path) {
@@ -80,6 +81,7 @@ function DashboardRoute({ pathname }) {
   let Page = InboxPage
   if (pathname === '/ai-chat') Page = AIChatPage
   if (pathname === '/management') Page = ManagementPage
+  if (pathname === '/profile') Page = ProfilePage
 
   return (
     <div className="relative h-screen w-screen overflow-auto">

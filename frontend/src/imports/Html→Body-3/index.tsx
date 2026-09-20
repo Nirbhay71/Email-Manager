@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../../utils/api.ts";
 import svgPaths from "./svg-akbvvdwpgd";
 import inboxSvgPaths from "../Html→Body-1/svg-nwc2hakocy";
 import imgAb6AXuDoSJwjP31NbOVxOIg0ZdAacyXz07TLo5IqAd9DGnO54TlaJnBqr0Oc2Q1HMj6ElMc1AYrScN1J0UiDfZl1KNm6NdpAqEwODgWseRe86L0OzoEtQsCgnH0M1D7EgmTg8PTbaq9YzMyCsqQUK98AgLxHgAsfWzE3Y5MzLx6CHh7VvTiVyXdHnZXqBYlG4RDr3B5URUsqQQn5MfFlh8DxeMiGkTlxxoN2UZzmCwe8W5VBNmtjK from "./16a5e24ed32959fcf59c6d4cc9895c8aa326b631.png";
@@ -1494,7 +1495,7 @@ function Profile() {
   return (
     <div className="flex-[1_0_0] min-h-px relative w-full" data-name="Profile">
       <div className="absolute bg-clip-padding border-0 border-[transparent] border-solid inset-0 overflow-hidden pointer-events-none">
-        <img alt="" className="absolute h-full left-[-41.76%] max-w-none top-0 w-[183.51%]" src={user.avatar || imgProfile} />
+        <img alt="" className="absolute h-full left-[-41.76%] max-w-none top-0 w-[183.51%]" referrerPolicy="no-referrer" src={user.avatar || imgProfile} />
       </div>
     </div>
   );
@@ -1556,7 +1557,7 @@ export default function HtmlBody() {
           timeMax: end.toISOString()
         });
         
-        const response = await fetch(`${BACKEND_URL}/calendar/events?${params}`);
+        const response = await apiFetch(`${BACKEND_URL}/calendar/events?${params}`);
         if (!response.ok) throw new Error("Failed to fetch events");
         const data = await response.json();
         

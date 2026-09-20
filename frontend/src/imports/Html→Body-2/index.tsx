@@ -1,4 +1,5 @@
 import svgPaths from "./svg-9eyoj0uxqg";
+import { apiFetch } from "../../utils/api.ts";
 import imgUser from "./4a1497f7eb1ac52188d5053d788a4d72df0d0413.png";
 import imgAiAssistant from "./09d34397fc5dfe77be0866af9c35f049cbca10fe.png";
 import imgAb6AXuA4ShRLlY6HbhKaeLaQgbraIw42WVtB4S2F9VbMw5LxhJzbPYedSvdjLgE6BEExyCeP99IOool6NoCRqnsioeopLsbPm3P84QsJHqK1Gai8XfVIqA5Mol2QIbtKjDqpSaoLo3PltlMdrnOilEak0N5LRTlib9D2PmeV1LNvMbvYrX8IuJq1K6Gq3I9AbXmZIocanE2MhXzgGK2RGGqGmxXxic5BoSfAwOGmaHtj7UXitsLkWs from "./3d16bb95b2a6f2c06c620b3e84b11991da111c9a.png";
@@ -1208,7 +1209,7 @@ export default function HtmlBody() {
   const [sessions, setSessions] = useState([]);
   useEffect(() => {
     if (user.email) {
-      fetch(`/chat/sessions?email=${user.email}`)
+      apiFetch("/chat/sessions")
         .then(res => res.json())
         .then(setSessions)
         .catch(err => console.error('Failed to fetch chat sessions', err));

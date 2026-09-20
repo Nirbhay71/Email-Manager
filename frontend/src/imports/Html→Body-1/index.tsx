@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../../utils/api.ts";
 import svgPaths from "./svg-nwc2hakocy";
 import imgUser from "./4a1497f7eb1ac52188d5053d788a4d72df0d0413.png";
 import imgAb6AXuDvbHxrbuVhg1CxgVRnp3GbZa4Old7KtXqrMAhKYb7FCCtfyTb9Mmx6B289OHbPoeKin4Fz3F4BSniJvKooKl4OpOjrdoydQj15Jf1UjmainIiccvmtNoD8VwOgXcTm6L8TkRw3IaiG6GfqPmsIimxmMOck56Plr4ReE6Col2PMe1AGnWl3TyZlbJmceSWtJnBozL4JfLvAeRuOfuQ4FMy7O4SbG5ShWyGkBfONvB131Mkf91 from "./5c4ad065e5f19199a785d71e4c5d61062d7e3cb5.png";
@@ -129,7 +130,7 @@ function User() {
   return (
     <div className="pointer-events-none relative rounded-[9999px] shrink-0 size-[40px]" data-name="User">
       <div className="absolute inset-0 overflow-hidden rounded-[9999px]">
-        <img alt="" className="absolute h-full left-[-41.76%] max-w-none top-0 w-[183.51%]" src={user.avatar || imgUser} />
+        <img alt="" className="absolute h-full left-[-41.76%] max-w-none top-0 w-[183.51%]" referrerPolicy="no-referrer" src={user.avatar || imgUser} />
       </div>
       <div aria-hidden className="absolute border-2 border-solid border-white inset-0 rounded-[9999px]" />
     </div>
@@ -161,10 +162,10 @@ function Container3() {
 
 function UserProfileArea() {
   return (
-    <div className="content-stretch flex flex-col gap-[16px] items-center relative shrink-0" data-name="User Profile Area">
+    <button className="content-stretch flex flex-col gap-[16px] items-center relative shrink-0 cursor-pointer" data-name="User Profile Area" onClick={() => goToDashboardRoute("/profile")} title="Open profile" type="button">
       <Container2 />
       <Container3 />
-    </div>
+    </button>
   );
 }
 
@@ -1181,7 +1182,7 @@ function EmailList() {
       setError("");
 
       try {
-        const response = await fetch(`${BACKEND_URL}/emails/inbox?userEmail=${encodeURIComponent(userEmail)}&limit=25`, {
+        const response = await apiFetch(`${BACKEND_URL}/emails/inbox?userEmail=${encodeURIComponent(userEmail)}&limit=25`, {
           signal: controller.signal,
         });
 
@@ -1782,7 +1783,7 @@ function AllFilesSectionBottomLeft() {
       setError("");
 
       try {
-        const response = await fetch(`${BACKEND_URL}/categories?userEmail=${encodeURIComponent(userEmail)}`, {
+        const response = await apiFetch(`${BACKEND_URL}/categories?userEmail=${encodeURIComponent(userEmail)}`, {
           signal: controller.signal,
         });
 
@@ -1839,7 +1840,7 @@ function AllFilesSectionBottomLeft() {
     setError("");
 
     try {
-      const response = await fetch(`${BACKEND_URL}/categories`, {
+      const response = await apiFetch(`${BACKEND_URL}/categories`, {
         body: JSON.stringify({ name, userEmail }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -1947,7 +1948,7 @@ function DynamicCalendarSection() {
           timeMin: monthStart.toISOString(),
           timeMax: monthEnd.toISOString(),
         });
-        const response = await fetch(`${BACKEND_URL}/calendar/events?${params}`, {
+        const response = await apiFetch(`${BACKEND_URL}/calendar/events?${params}`, {
           signal: controller.signal,
         });
         const data = await response.json();

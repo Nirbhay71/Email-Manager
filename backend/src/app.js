@@ -15,6 +15,10 @@ import { requireAuth } from "./middleware/auth.middleware.js";
 
 const app = express();
 
+// Behind exactly one reverse proxy (ngrok / a load balancer): trust its X-Forwarded-For
+// so express-rate-limit keys on the real client IP. Set TRUST_PROXY=0 if run without a proxy.
+app.set("trust proxy", Number(process.env.TRUST_PROXY ?? 1));
+
 app.use(helmet());
 
 app.use(cors({
