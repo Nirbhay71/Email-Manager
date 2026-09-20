@@ -5,15 +5,6 @@ import AIChatPage from './pages/AIChatPage.tsx'
 import ManagementPage from './pages/ManagementPage.tsx'
 import { apiFetch, BACKEND } from './utils/api.ts'
 
-function parseCallbackUser() {
-  const params = new URLSearchParams(window.location.search)
-  const email = params.get('email')
-  const avatar = params.get('avatar')
-  const name = params.get('name')
-
-  return email ? { email, avatar, name } : null
-}
-
 function navigate(path) {
   if (window.location.pathname !== path || window.location.search) {
     window.history.pushState({}, '', path)
@@ -104,47 +95,9 @@ export default function App() {
 
   useEffect(() => {
     const init = async () => {
-      // Handle OAuth callback — backend already set cookies, just read user info from URL params
-      const callbackUser = parseCallbackUser()
-      if (callbackUser) {
-        localStorage.setItem('user', JSON.stringify(callbackUser))
-        // Flag: tell the second StrictMode invocation to skip /auth/me
-        sessionStorage.setItem('just_logged_in', '1')
-        setUser(callbackUser)
-        replacePath('/inbox')
-        setLoading(false)
-        return
-      }
-
-      const stored = localStorage.getItem('user')
-      if (!stored) {
-        setUser(false)
-        replacePath('/')
-        setLoading(false)
-        return
-      }
-
-      let parsed
-      try {
-        parsed = JSON.parse(stored)
-      } catch {
-        localStorage.removeItem('user')
-        setUser(false)
-        replacePath('/')
-        setLoading(false)
-        return
-      }
-
-      // If we just came from OAuth, trust localStorage — skip /auth/me (cookie may not propagate instantly)
-      if (sessionStorage.getItem('just_logged_in')) {
-        sessionStorage.removeItem('just_logged_in')
-        setUser(parsed)
-        if (window.location.pathname === '/') replacePath('/inbox')
-        setLoading(false)
-        return
-      }
-
-      // Validate session is still alive with the backend (uses cookie automatically)
+      // Identity always comes from the backend (via the httpOnly session
+      // cookie), never from URL params or trusted localStorage — the OAuth
+      // callback redirects here with no query string attached.
       try {
         const res = await apiFetch('/auth/me')
         if (!res.ok) {
@@ -155,17 +108,15 @@ export default function App() {
           return
         }
         const data = await res.json()
-        const freshUser = {
-          email: data.email,
-          avatar: data.avatar,
-          name: parsed.name,
-        }
+        const freshUser = { email: data.email, avatar: data.avatar }
         localStorage.setItem('user', JSON.stringify(freshUser))
         setUser(freshUser)
-      } catch {
-        setUser(parsed)
-      } finally {
         if (window.location.pathname === '/') replacePath('/inbox')
+      } catch {
+        localStorage.removeItem('user')
+        setUser(false)
+        replacePath('/')
+      } finally {
         setLoading(false)
       }
     }

@@ -1,5 +1,5 @@
 import express from "express";
-import { hybridSearchClient } from "../grpc/hybridSearchClient.js";
+import { hybridSearchClient, buildServiceMetadata } from "../grpc/hybridSearchClient.js";
 
 const router = express.Router();
 
@@ -8,24 +8,31 @@ const router = express.Router();
  * Hybrid search endpoint utilizing BM25, semantic vector search, and reranking.
  * Request body: { query: string, userEmail: string, limit?: number, offset?: number }
  */
+const MAX_QUERY_LENGTH = 500;
+const MAX_LIMIT = 100;
+
 router.post("/v2", async (req, res) => {
     const { query, limit, offset } = req.body;
     const userEmail = req.user.email; // from verified JWT — cannot be spoofed
 
-    if (!query) {
+    if (!query || typeof query !== "string") {
         return res.status(400).json({ error: "query is required" });
     }
+    if (query.length > MAX_QUERY_LENGTH) {
+        return res.status(400).json({ error: `query must be under ${MAX_QUERY_LENGTH} characters` });
+    }
 
-    console.log(`[HOP 1: Express Route] Received query="${query}", userEmail="${userEmail}"`);
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), MAX_LIMIT);
+    const safeOffset = Math.max(Number(offset) || 0, 0);
 
     hybridSearchClient.Search({
         query: query,
         user_email: userEmail,
-        limit: limit || 20,
-        offset: offset || 0
-    }, (err, response) => {
+        limit: safeLimit,
+        offset: safeOffset
+    }, buildServiceMetadata(), (err, response) => {
         if (err) {
-            console.error("[/search/v2] gRPC search error:", err);
+            console.error("[/search/v2] gRPC search error:", err.message);
             // 14 is grpc.status.UNAVAILABLE
             if (err.code === 14) {
                 return res.status(503).json({ error: "Search service is temporarily unreachable" });

@@ -4,6 +4,7 @@ import {
     googleCallback,
     refreshTokensHandler,
     logout,
+    logoutAll,
     getMe
 } from "../controllers/auth.controllers.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
@@ -18,5 +19,6 @@ router.post("/refresh", refreshTokensHandler);  // uses refreshToken cookie
 // Protected
 router.get("/me", requireAuth, getMe);
 router.post("/logout", requireAuth, logout);
+router.post("/logout-all", requireAuth, logoutAll);
 
 export default router;

@@ -91,7 +91,7 @@ def start_http_server():
 
     uvicorn.run(
         app,
-        host="0.0.0.0",
+        host=cfg.HTTP_BIND_HOST,
         port=cfg.HTTP_PORT,
         log_level=cfg.LOG_LEVEL.lower(),
     )
