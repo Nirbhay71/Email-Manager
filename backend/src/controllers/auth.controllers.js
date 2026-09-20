@@ -129,10 +129,15 @@ export const refreshTokensHandler = async (req, res) => {
     const incomingHash = sha256(incomingRefreshToken);
 
     try {
-        // Find the user that owns this (unexpired) refresh token hash, used or not
+        // Find the user that owns this refresh token hash. $elemMatch is required
+        // here: a plain multi-field query on an array of subdocuments matches if
+        // ANY element satisfies the token condition and ANY element (possibly a
+        // different one) satisfies the expiry condition — it does not require
+        // both to hold on the same subdocument. Without $elemMatch, a long-expired
+        // token could pass this lookup as long as the account had some other
+        // unrelated, still-valid refreshTokens entry.
         const user = await User.findOne({
-            "refreshTokens.token": incomingHash,
-            "refreshTokens.expiresAt": { $gt: new Date() }
+            refreshTokens: { $elemMatch: { token: incomingHash, expiresAt: { $gt: new Date() } } }
         });
 
         if (!user) {
@@ -140,7 +145,16 @@ export const refreshTokensHandler = async (req, res) => {
             return res.status(401).json({ error: "Invalid or expired refresh token" });
         }
 
+        // Opportunistically prune expired entries so the array doesn't grow unbounded
+        user.refreshTokens = user.refreshTokens.filter(rt => rt.expiresAt > new Date());
+
         const entry = user.refreshTokens.find(rt => rt.token === incomingHash);
+
+        // Belt-and-suspenders: re-verify expiry on the exact matched entry too.
+        if (!entry || entry.expiresAt <= new Date()) {
+            clearAuthCookies(res);
+            return res.status(401).json({ error: "Invalid or expired refresh token" });
+        }
 
         if (entry.usedAt) {
             // Reuse of an already-rotated token — the refresh token was likely

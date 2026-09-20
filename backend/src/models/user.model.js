@@ -35,7 +35,10 @@ const UserSchema = new mongoose.Schema({
     }]
 }, { timestamps: true })
 
-// TTL-like cleanup: index on expiresAt so expired tokens are easy to purge
+// NOT a TTL index (Mongo TTL indexes can't expire individual array elements,
+// only whole documents) — this just speeds up the $elemMatch lookup in
+// refreshTokensHandler. Expired entries are pruned opportunistically there,
+// not automatically by Mongo.
 UserSchema.index({ "refreshTokens.expiresAt": 1 });
 
 UserSchema.virtual("tokensPlain")
