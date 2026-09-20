@@ -170,50 +170,52 @@ Our platform leverages a specialized stack distributed across Node.js and Python
 
 ## 📂 Comprehensive Folder Structure
 
-The project is structured into strict microservices to enforce a separation of concerns between I/O bound web traffic and CPU/GPU bound ML workloads.
+> **Note:** the Importance Engine / feature-engineering pipeline described in
+> [Key Features](#-key-features) and the architecture diagram above is the
+> project's design goal — `feature_engineering/` and
+> `python-service/importance_model/` don't exist in this repo yet, and
+> `python-service/` currently only runs a legacy gRPC search/Q&A service
+> that predates `search_feature_demo/` and isn't wired into the backend
+> (see [`okf/operations/known-issues.md`](okf/operations/known-issues.md)).
+> The folder tree below reflects what's actually in the repo today.
 
 ```text
 Email-Manager/
 │
 ├── backend/                       # 🟢 Node.js API server (Auth, Webhooks, Orchestration)
 │   └── src/
-│       ├── config/                # Database and OAuth credentials configuration
-│       ├── controllers/           # Request handlers (webhook processing, auth callbacks)
-│       ├── grpc/                  # gRPC client stubs to communicate with Python services
-│       ├── models/                # Mongoose Schemas (Email, EmailLabel, SyncState)
-│       ├── routes/                # Express API endpoints (/inbox, /onboarding, /search)
-│       └── services/              # Core business logic (gmail.service.js, inboxSampler.js)
+│       ├── config/                # Google OAuth client configuration
+│       ├── controllers/           # Request handlers (auth, webhook, chat, calendar, category, email)
+│       ├── grpc/                  # gRPC client stub for search_feature_demo's SearchService
+│       ├── middleware/            # requireAuth (JWT) and verifyPubSub (webhook OIDC verification)
+│       ├── models/                # Mongoose schemas (User, Email, Category, ChatSession)
+│       ├── routes/                # Express API endpoints (/auth, /ask, /search, /chat, /calendar, /categories, /emails, /webhook)
+│       ├── service/ & services/   # Core business logic (gmail, calendar, dateExtractor, sms, embeddingClient)
+│       └── utils/                 # token.utils.js (JWT/cookies), crypto.utils.js (token encryption/hashing)
 │
-├── frontend/                      # 🔵 React UI (Dashboard, Inbox, AI Chat)
+├── frontend/                      # 🔵 React UI (Login, Inbox, AI Chat, Management)
 │   └── src/
 │       ├── assets/                # Global CSS (Tailwind index), static images
-│       ├── components/            # Reusable UI (ImportanceBadge, Explainability Tooltips)
-│       └── pages/                 # Full views: InboxPage, SearchPage, OnboardingLabeling
+│       ├── pages/                 # LoginPage, InboxPage, AIChatPage, ManagementPage
+│       └── utils/                 # api.ts — fetch wrapper with cookie auth + silent token refresh
 │
-├── search_feature_demo/           # 🔍 Python Hybrid Search & RAG microservice
-│   ├── grpc_app/                  # gRPC server exposing EmbedAndStore routines
-│   ├── llm/                       # Gemini AI Copilot context orchestration
-│   ├── models/                    # Scripts to download and cache HuggingFace weights
-│   ├── retrieval/                 # Search core: rank_bm25, ChromaDB management, RRF logic
-│   ├── router/                    # Query intent parsing and operator extraction via spaCy
+├── search_feature_demo/           # 🔍 Python Hybrid Search & RAG microservice (the one the backend actually talks to)
+│   ├── grpc_app/                  # gRPC server: Search, EmbedAndStore, AskQuestion (AI chat)
+│   ├── api/                       # FastAPI HTTP server (direct/manual search access, not used by the backend)
+│   ├── llm/                       # Gemini Copilot prompt construction + streaming, with key rotation
+│   ├── embeddings/, reranking/    # Embedding + cross-encoder model wrappers
+│   ├── retrieval/                 # rank_bm25, ChromaDB, MongoDB metadata search, RRF fusion
+│   ├── router/                    # Query intent parsing (spaCy) and Gmail-style operator extraction
+│   ├── pipeline/                  # Orchestrates the above into one search call
 │   └── main.py                    # Entry point for FastAPI (8001) and gRPC (50052)
 │
-├── feature_engineering/           # ⚙️ ML Feature Extraction Pipeline
-│   ├── sender_features.py         # Analyzes sender domains and historical contact frequency
-│   ├── content_features.py        # Extracts NLP flags (urgency, OTPs, deadlines)
-│   ├── time_features.py           # Temporal heuristics (day of week, time of day)
-│   ├── pipeline.py                # Combines all extractors into a single feature vector
-│   └── tests/                     # Verification of edge cases and cold-start guards
+├── python-service/                # 🧠 Legacy Q&A gRPC service — not currently used by the backend
+│   └── server.py                  # Older EmailSearchService (EmbedAndStore, AskQuestion) on port 50051
 │
-├── python-service/                # 🧠 Importance Scoring & Inference API
-│   ├── importance_model/          
-│   │   ├── train_global.py        # Trains the global LightGBM bootstrap model on all data
-│   │   ├── calibration.py         # Fits per-user Platt scaling logistic regression
-│   │   ├── scorer.py              # Executes real-time inference with pred_contrib=True
-│   │   └── explanation_labels.py  # Maps raw ML features to human-readable UI tooltips
-│   └── app.py                     # Entry point for the scoring REST API
+├── classifier-service/            # ⚠️ Incomplete — no entry point, not functional
 │
-├── SECURITY_NOTES.md              # Documentation on current OAuth scope and privacy caveats
+├── SECURITY_NOTES.md              # What's been hardened and what's still open
+├── SECRET_ROTATION_CHECKLIST.md   # Manual steps to rotate/generate secrets before deploying
 └── README.md                      # This document
 ```
 
@@ -226,22 +228,28 @@ Email-Manager/
 - **Parallel Retrieval**: Fires queries simultaneously to MongoDB (Metadata), `rank_bm25`, and `ChromaDB`.
 - **Fusion**: Uses RRF (k=60) to merge discrete sparse and dense ranked lists.
 - **Reranker**: A cross-encoder validates the top K results for maximum precision.
+- **AI Copilot (`AskQuestion`)**: Retrieves context via the same pipeline, then streams a grounded answer from Gemini, rotating across up to 4 configured API keys as each hits its quota.
 
-### 2. Importance Engine (LightGBM)
-Uses a **Global Bootstrap Model + Per-User Calibration**:
-- **Feature Extraction**: Generates 25+ features (temporal trends, sender history, regex content flags, embedding centroids).
-- **Global Model**: A single LightGBM binary classifier trained across all users to prevent overfitting on low-data accounts.
-- **Platt Scaling**: Adjusts the global model's probabilities to the specific baseline of each individual user.
+### 2. Importance Engine (LightGBM) — planned, not yet implemented
+The global-model-plus-per-user-calibration design described above is the
+target architecture; the feature-engineering pipeline and scoring API it
+depends on haven't been built in this repo yet.
 
 ---
 
 ## 📦 Installation
 
+Three services need to run together for the full app to work: **backend**
+(Node/Express API), **frontend** (React/Vite UI), and
+**search_feature_demo** (Python — search, RAG/AI chat, embeddings). Start
+them in this order so each one has what it depends on when it starts.
+
 ### Prerequisites
 - Node.js `v18+`
 - Python `3.11+`
 - MongoDB running on `localhost:27017`
-- NVIDIA GPU with CUDA support (Recommended for search pipeline)
+- NVIDIA GPU with CUDA support (recommended for the search pipeline; CPU also works, just slower)
+- A [Gemini API key](https://aistudio.google.com/apikey) (up to 4, for automatic quota rotation — see below)
 
 ### 1. Clone the Repository
 ```bash
@@ -249,21 +257,31 @@ git clone https://github.com/Nirbhay71/Email-Manager.git
 cd Email-Manager
 ```
 
-### 2. Backend Setup
+### 2. Configure environment variables
+Copy the `.env.example` in each service directory to `.env` and fill in
+real values — see [Environment Variables](#-environment-variables) below
+for what each one does and how to generate the secrets:
+```bash
+cp backend/src/.env.example backend/src/.env
+cp search_feature_demo/.env.example search_feature_demo/.env
+```
+
+### 3. Backend Setup
 ```bash
 cd backend
 npm install
-npm run dev                # Starts API on port 3000
+npm run dev                # Starts API on http://localhost:5000
 ```
 
-### 3. Frontend Setup
+### 4. Frontend Setup
 ```bash
 cd frontend
 npm install
-npm run dev                # Starts UI on port 5173
+npm run dev                # Starts UI on http://localhost:5173
 ```
 
-### 4. Search & RAG Microservice
+### 5. Search, RAG & AI Chat Microservice
+This is the service the backend actually talks to for `/search/v2` and `/ask`.
 ```bash
 cd search_feature_demo
 python -m venv venv
@@ -274,40 +292,78 @@ python -m spacy download en_core_web_sm
 python main.py             # Starts HTTP (8001) and gRPC (50052)
 ```
 
-### 5. Importance Engine Microservice
-```bash
-cd python-service
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python app.py              # Starts Scoring API
-```
+### 6. Sign in
+Open `http://localhost:5173`, sign in with Google, and the OAuth flow will
+create your user record and start syncing your inbox.
+
+`python-service/` and `classifier-service/` don't need to be running for
+the app to work — see the [Folder Structure](#-comprehensive-folder-structure) note above.
 
 ---
 
 ## 🔧 Environment Variables
 
-Create `.env` files in the respective directories:
+Copy each `.env.example` to `.env` in the same directory rather than typing
+these from scratch — it documents every variable inline. Summary:
 
-**Backend (`backend/.env`)**
+**Backend (`backend/src/.env`)** — note the path: `backend/src/index.js` loads dotenv from `./src/.env`, not `backend/.env`.
 ```env
-PORT=3000
+PORT=5000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:5173
 MONGO_URI=mongodb://localhost:27017/ai_email_manager
-GMAIL_CLIENT_ID=your_client_id
-GMAIL_CLIENT_SECRET=your_client_secret
-GMAIL_REDIRECT_URI=http://localhost:3000/auth/google/callback
+
+# Google OAuth (Cloud Console → APIs & Services → Credentials)
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_client_secret
+GOOGLE_REDIRECT_URI=http://localhost:5000/auth/google/callback
 GMAIL_PUBSUB_TOPIC=projects/your-project/topics/your-topic
+
+# Gmail Pub/Sub webhook verification — required outside NODE_ENV=development
+PUBSUB_AUDIENCE=
+PUBSUB_SERVICE_ACCOUNT_EMAIL=
+
+# Auth secrets — generate with: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+JWT_ACCESS_SECRET=
+# 32-byte (64 hex char) key encrypting stored Google tokens at rest — generate with randomBytes(32)
+TOKEN_ENCRYPTION_KEY=
+
+# Shared secret with the Python services below (same value in all three .env files)
+SERVICE_TOKEN=
+HYBRID_SEARCH_GRPC_HOST=localhost:50052
+
+# Twilio (SMS deadline alerts)
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+TWILIO_TEST_TO_NUMBER=
 ```
 
 **Python Search Service (`search_feature_demo/.env`)**
 ```env
 MONGO_URI=mongodb://localhost:27017/ai_email_manager
 CHROMA_PERSIST_DIR=./chroma_data
-GEMINI_API_KEY=your_gemini_api_key
 SEARCH_HTTP_PORT=8001
 SEARCH_GRPC_PORT=50052
 DEVICE=auto
+
+# Up to 4 keys — the AI chat rotates to the next one when the current key
+# hits its quota, and replies "out of tokens" once all are exhausted.
+GEMINI_API_KEY_1=your_gemini_api_key
+GEMINI_API_KEY_2=
+GEMINI_API_KEY_3=
+GEMINI_API_KEY_4=
+
+# Must match backend's SERVICE_TOKEN. Leave SERVICE_TOKEN empty only with ENVIRONMENT=development.
+SERVICE_TOKEN=
+ENVIRONMENT=development
 ```
+
+See `backend/src/.env.example` and `search_feature_demo/.env.example` for
+the full, inline-documented list (retrieval tuning, timeouts, cache, and
+`python-service/.env.example` if you're running the legacy service).
+`SECRET_ROTATION_CHECKLIST.md` has step-by-step commands for generating
+every secret above.
 
 ---
 
