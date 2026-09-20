@@ -31,6 +31,8 @@ dotenv.config({ path: './src/.env' })
 | `TWILIO_AUTH_TOKEN` | No | — | `service/sms.service.js` | Twilio auth token |
 | `TWILIO_FROM_NUMBER` | No | — | `service/sms.service.js` | Twilio sender phone number |
 | `TWILIO_TEST_TO_NUMBER` | No | — | `service/sms.service.js` | Fixed test recipient phone |
+| `PUBSUB_AUDIENCE` | No (Yes in prod) | — | `middleware/verifyPubSub.middleware.js` | Full webhook URL registered in Pub/Sub push subscription (e.g. `https://abc.ngrok.io/webhook/gmail`). Enables strict audience check. |
+| `PUBSUB_SERVICE_ACCOUNT_EMAIL` | No | — | `middleware/verifyPubSub.middleware.js` | Google service account email that signs push tokens. Adds issuer check on top of signature verification. |
 
 ---
 

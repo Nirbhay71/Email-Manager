@@ -14,10 +14,15 @@ See also: [domains/email-ingestion.md](../domains/email-ingestion.md) for full d
 Google Pub/Sub
   │
   └── POST /webhook/gmail
+        Header: Authorization: Bearer <Google-signed OIDC token>
         Body: { message: { data: "<base64>" } }
         base64 decodes to: { emailAddress: "user@gmail.com", historyId: "12345" }
 
 backend/src/routes/webhook.routes.js
+  → middleware/verifyPubSub.middleware.js → verifyPubSub()   ← NEW
+       google-auth-library: client.verifyIdToken(token, audience)
+       On failure → 401 (request rejected before handler runs)
+       On success → req.pubsubClaims set, next() called
   → webhook.controllers.js → handleGmailWebhook()
 
   1. User lookupEmail
@@ -69,6 +74,7 @@ backend/src/routes/webhook.routes.js
 ## Critical Design Notes
 
 - **Always 200 to Google**: Webhook responds 200 even on internal errors to prevent Pub/Sub from retrying thousands of times.
+- **OIDC verification**: `verifyPubSub` middleware rejects any request without a valid Google-signed OIDC token. Set `PUBSUB_AUDIENCE` in `.env` (your ngrok/production webhook URL) for strict audience checking.
 - **Idempotent**: Emails are skipped if `messageId` already exists (`findOne` before `create`). Catch on `code: 11000` for race conditions.
 - **Non-blocking embedding**: `embedAndStoreEmail` is fire-and-forget — email saves to MongoDB regardless of embedding success.
 - **Dual token stores**: `user.tokens` = Google OAuth tokens (for Gmail/Calendar); `user.refreshTokens` = our JWT rotation tokens. Do not confuse.

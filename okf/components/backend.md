@@ -15,6 +15,7 @@ index.js
   → db/index.db.js          (MongoDB connect)
   → app.js
       → middleware/auth.middleware.js
+      → middleware/verifyPubSub.middleware.js
       → routes/*.routes.js
            → controllers/*.controllers.js
                 → models/*.model.js
@@ -57,6 +58,7 @@ index.js
 | File | Imports | Exports | Consumed by |
 |---|---|---|---|
 | `middleware/auth.middleware.js` | `jsonwebtoken` | `requireAuth` | `app.js` (all protected routes), `auth.routes.js` (me, logout) |
+| `middleware/verifyPubSub.middleware.js` | `google-auth-library` | `verifyPubSub` | `webhook.routes.js` — validates Google Pub/Sub OIDC token before handler runs |
 
 ### Models
 
@@ -84,7 +86,7 @@ index.js
 |---|---|---|
 | `routes/auth.routes.js` | `/auth` | `auth.controllers.js`, `auth.middleware.js` |
 | `routes/email.routes.js` | `/emails` | `email.controllers.js` |
-| `routes/webhook.routes.js` | `/webhook` | `webhook.controllers.js` |
+| `routes/webhook.routes.js` | `/webhook` | `webhook.controllers.js`, `verifyPubSub.middleware.js` |
 | `routes/ask.routes.js` | `/ask` | `hybridSearchClient.js`, `chatSession.model.js` |
 | `routes/search.routes.js` | `/search` | `hybridSearchClient.js` |
 | `routes/category.routes.js` | `/categories` | `category.controllers.js` |
