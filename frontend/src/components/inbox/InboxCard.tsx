@@ -29,7 +29,7 @@ interface InboxResponse {
 
 type Tab = "all" | "deadlines";
 
-const PAGE_SIZE = 8;
+const DEFAULT_PAGE_SIZE = 8;
 const REFRESH_MS = 30000;
 
 const AVATAR_THEMES = [
@@ -80,7 +80,10 @@ function pageWindow(page: number, pages: number): (number | "…")[] {
   return out;
 }
 
-export default function InboxCard({ onLatest }: { onLatest?: (email: InboxEmail | null, deadlines: number) => void }) {
+export default function InboxCard({ onLatest, pageSize = DEFAULT_PAGE_SIZE }: {
+  onLatest?: (email: InboxEmail | null, deadlines: number) => void;
+  pageSize?: number;
+}) {
   const [tab, setTab] = useState<Tab>("all");
   const [page, setPage] = useState(1);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -113,7 +116,7 @@ export default function InboxCard({ onLatest }: { onLatest?: (email: InboxEmail 
   const load = useCallback(async (signal: AbortSignal, silent: boolean) => {
     if (!silent) setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+      const params = new URLSearchParams({ page: String(page), limit: String(pageSize) });
       if (tab === "deadlines") params.set("filter", "deadlines");
       if (query) params.set("q", query);
       const res = await apiFetch(`/emails/inbox?${params}`, { signal });
@@ -128,7 +131,7 @@ export default function InboxCard({ onLatest }: { onLatest?: (email: InboxEmail 
     } finally {
       if (!signal.aborted) setLoading(false);
     }
-  }, [page, tab, query]);
+  }, [page, tab, query, pageSize]);
 
   // Load on every page/tab/search change, and poll quietly so new webhook mail shows up
   useEffect(() => {
@@ -228,8 +231,8 @@ export default function InboxCard({ onLatest }: { onLatest?: (email: InboxEmail 
   const emails = data?.emails ?? [];
   const total = data?.total ?? 0;
   const pages = data?.pages ?? 1;
-  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const to = Math.min(page * PAGE_SIZE, total);
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: "all", label: "All mail", count: data?.counts.all },

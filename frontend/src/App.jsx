@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import GeneratedLoginPage from './pages/LoginPage.tsx'
 import InboxPage from './pages/InboxPage.tsx'
+import MailPage from './pages/MailPage.tsx'
 import AIChatPage from './pages/AIChatPage.tsx'
 import ManagementPage from './pages/ManagementPage.tsx'
 import ProfilePage from './pages/ProfilePage.tsx'
@@ -79,6 +80,7 @@ function LoginRoute() {
 
 function DashboardRoute({ pathname }) {
   let Page = InboxPage
+  if (pathname === '/mail') Page = MailPage
   if (pathname === '/ai-chat') Page = AIChatPage
   if (pathname === '/management') Page = ManagementPage
   if (pathname === '/profile') Page = ProfilePage

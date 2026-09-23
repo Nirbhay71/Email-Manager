@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import svgPaths from "../imports/Html→Body-2/svg-9eyoj0uxqg";
 import imgUser from "../imports/Html→Body-2/4a1497f7eb1ac52188d5053d788a4d72df0d0413.png";
 
-export type NavKey = "inbox" | "management" | "ai-chat" | "profile";
+export type NavKey = "inbox" | "mail" | "management" | "ai-chat" | "profile";
 
 export function getStoredUser(): { email?: string; avatar?: string; name?: string } {
   if (typeof window === "undefined") return {};
@@ -33,6 +33,15 @@ function InboxIcon() {
   return (
     <svg {...svgProps}>
       <path d={svgPaths.p42a6600} />
+    </svg>
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg {...svgProps}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
     </svg>
   );
 }
@@ -91,6 +100,7 @@ export default function NavRail({ active, reserve = true }: { active: NavKey; re
           </div>
           <div className="flex flex-col gap-[24px] items-center w-[40px]">
             <NavButton active={active === "inbox"} to="/inbox" label="Inbox"><InboxIcon /></NavButton>
+            <NavButton active={active === "mail"} to="/mail" label="All mail"><MailIcon /></NavButton>
             <NavButton active={active === "management"} to="/management" label="Calendar"><CalendarIcon /></NavButton>
             <NavButton active={active === "ai-chat"} to="/ai-chat" label="AI assistant"><AssistantIcon /></NavButton>
           </div>
