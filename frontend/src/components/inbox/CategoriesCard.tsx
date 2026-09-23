@@ -1,7 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { apiFetch } from "../../utils/api.ts";
 
-interface Category { id: string; name: string; createdAt: string }
+interface Category {
+  id: string;
+  name: string;
+  createdAt: string;
+  count: number;
+  autoClassifyEnabled: boolean;
+  examplesNeeded: number;
+}
+
+// Must be kept in sync with MIN_EXAMPLES_PER_CATEGORY in classifier-service/.env.
+const DEFAULT_EXAMPLES_NEEDED = 15;
 
 export default function CategoriesCard() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -37,7 +47,9 @@ export default function CategoriesCard() {
       const res = await apiFetch("/categories", { method: "POST", body: JSON.stringify({ name: value }) });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Could not add category");
-      setCategories((prev) => [json.category, ...prev]);
+      // A brand-new category has no examples yet — the create endpoint doesn't
+      // round-trip through the classifier, so fill these in ourselves.
+      setCategories((prev) => [{ ...json.category, count: 0, autoClassifyEnabled: false, examplesNeeded: DEFAULT_EXAMPLES_NEEDED }, ...prev]);
       setName("");
       setAdding(false);
     } catch (err) {
@@ -96,11 +108,20 @@ export default function CategoriesCard() {
         ) : (
           <ul className="flex flex-col gap-[8px]">
             {categories.map((c) => (
-              <li key={c.id} className="flex items-center justify-between bg-[#f9fafb] border border-[#f3f4f6] rounded-[16px] px-[16px] py-[12px]">
+              <li key={c.id} className="flex items-center justify-between gap-[12px] bg-[#f9fafb] border border-[#f3f4f6] rounded-[16px] px-[16px] py-[12px]">
                 <span className="font-semibold text-[14px] text-[#374151] truncate">{c.name}</span>
-                <time className="text-[11px] text-[#9ca3af] shrink-0 ml-[12px]" dateTime={c.createdAt}>
-                  {new Date(c.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
-                </time>
+                <span className="flex items-center gap-[8px] shrink-0">
+                  {c.autoClassifyEnabled ? (
+                    <span className="text-[10px] font-semibold text-[#16a34a] bg-[#dcfce7] rounded-full px-[8px] py-[2px]">Auto-classifying</span>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-[#4b5563] bg-[#f3f4f6] rounded-full px-[8px] py-[2px]">
+                      {c.count}/{c.count + c.examplesNeeded} examples
+                    </span>
+                  )}
+                  <time className="text-[11px] text-[#9ca3af]" dateTime={c.createdAt}>
+                    {new Date(c.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                  </time>
+                </span>
               </li>
             ))}
           </ul>

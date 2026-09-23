@@ -37,6 +37,22 @@ const emailSchema = new mongoose.Schema({
     smsSent: {
         type: Boolean,
         default: false
+    },
+    category: {
+        type: String,
+        default: null
+    },
+    confidence: {
+        type: Number,
+        default: null
+    },
+    needsReview: {
+        type: Boolean,
+        default: false
+    },
+    classifyReasoning: {
+        type: String,
+        default: null
     }
 }, { timestamps: true });
 

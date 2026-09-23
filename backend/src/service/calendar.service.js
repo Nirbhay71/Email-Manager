@@ -29,6 +29,23 @@ export async function createDeadlineEvent(tokens, {title, isoDate, description})
     return res.data;
 }
 
+export async function deleteDeadlineEvent(tokens, eventId) {
+    const auth = getOAuthClient();
+    auth.setCredentials(tokens);
+
+    const calendar = google.calendar({version: "v3", auth});
+
+    try {
+        await calendar.events.delete({
+            calendarId: "primary",
+            eventId
+        });
+    } catch (error) {
+        // Already gone (deleted from Google Calendar directly, etc.) — treat as success.
+        if (error.code !== 404 && error.code !== 410) throw error;
+    }
+}
+
 export async function listCalendarEvents(tokens, { timeMin, timeMax }) {
     const auth = getOAuthClient();
     auth.setCredentials(tokens);

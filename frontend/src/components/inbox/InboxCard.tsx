@@ -12,7 +12,11 @@ export interface InboxEmail {
   receivedAt: string;
   detectedDate?: string | null;
   calendarEventId?: string | null;
+  category?: string | null;
+  needsReview?: boolean;
 }
+
+interface CategoryOption { id: string; name: string }
 
 interface InboxResponse {
   emails: InboxEmail[];
@@ -88,6 +92,18 @@ export default function InboxCard({ onLatest }: { onLatest?: (email: InboxEmail 
   const onLatestRef = useRef(onLatest);
   onLatestRef.current = onLatest;
 
+  // "Add event" / "categorize" state, shared between the row controls and the open-mail modal
+  const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
+  const [categorizingIds, setCategorizingIds] = useState<Set<string>>(new Set());
+  const [actionError, setActionError] = useState("");
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+
+  // Open-mail modal
+  const [openEmailId, setOpenEmailId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<(InboxEmail & { body: string }) | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
+
   // Debounce the search box so we don't query on every keystroke
   useEffect(() => {
     const id = window.setTimeout(() => { setQuery(search.trim()); setPage(1); }, 300);
@@ -121,6 +137,93 @@ export default function InboxCard({ onLatest }: { onLatest?: (email: InboxEmail 
     const id = window.setInterval(() => load(controller.signal, true), REFRESH_MS);
     return () => { controller.abort(); window.clearInterval(id); };
   }, [load]);
+
+  // Fetch the full body when a mail is opened
+  useEffect(() => {
+    if (!openEmailId) { setDetail(null); setDetailError(""); return; }
+    const controller = new AbortController();
+    setDetailLoading(true);
+    setDetailError("");
+    apiFetch(`/emails/${openEmailId}`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Request failed with ${res.status}`);
+        setDetail(await res.json());
+      })
+      .catch((e) => { if (e.name !== "AbortError") setDetailError("Unable to load this email."); })
+      .finally(() => { if (!controller.signal.aborted) setDetailLoading(false); });
+    return () => controller.abort();
+  }, [openEmailId]);
+
+  // The user's categories, for the inline categorize picker — fetched once,
+  // independent of CategoriesCard's own fetch elsewhere on the dashboard.
+  useEffect(() => {
+    const controller = new AbortController();
+    apiFetch("/categories", { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = await res.json();
+        setCategories((json.categories ?? []).map((c: CategoryOption) => ({ id: c.id, name: c.name })));
+      })
+      .catch(() => { /* picker just stays empty */ });
+    return () => controller.abort();
+  }, []);
+
+  const handleAddEvent = useCallback(async (target: { id: string }) => {
+    setAddingIds((prev) => new Set(prev).add(target.id));
+    setActionError("");
+    try {
+      const res = await apiFetch(`/emails/${target.id}/calendar-event`, { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `Request failed with ${res.status}`);
+      setData((prev) => prev ? {
+        ...prev,
+        emails: prev.emails.map((e) => e.id === target.id ? { ...e, calendarEventId: json.calendarEventId } : e),
+      } : prev);
+      setDetail((prev) => prev && prev.id === target.id ? { ...prev, calendarEventId: json.calendarEventId } : prev);
+    } catch (e) {
+      setActionError((e as Error).message || "Unable to add event.");
+    } finally {
+      setAddingIds((prev) => { const next = new Set(prev); next.delete(target.id); return next; });
+    }
+  }, []);
+
+  const handleRemoveEvent = useCallback(async (target: { id: string }) => {
+    setAddingIds((prev) => new Set(prev).add(target.id));
+    setActionError("");
+    try {
+      const res = await apiFetch(`/emails/${target.id}/calendar-event`, { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `Request failed with ${res.status}`);
+      setData((prev) => prev ? {
+        ...prev,
+        emails: prev.emails.map((e) => e.id === target.id ? { ...e, calendarEventId: null } : e),
+      } : prev);
+      setDetail((prev) => prev && prev.id === target.id ? { ...prev, calendarEventId: null } : prev);
+    } catch (e) {
+      setActionError((e as Error).message || "Unable to remove event.");
+    } finally {
+      setAddingIds((prev) => { const next = new Set(prev); next.delete(target.id); return next; });
+    }
+  }, []);
+
+  const handleSetCategory = useCallback(async (target: { id: string }, category: string) => {
+    setCategorizingIds((prev) => new Set(prev).add(target.id));
+    setActionError("");
+    try {
+      const res = await apiFetch(`/emails/${target.id}/category`, { method: "POST", body: JSON.stringify({ category }) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `Request failed with ${res.status}`);
+      setData((prev) => prev ? {
+        ...prev,
+        emails: prev.emails.map((e) => e.id === target.id ? { ...e, category: json.category, needsReview: json.needsReview } : e),
+      } : prev);
+      setDetail((prev) => prev && prev.id === target.id ? { ...prev, category: json.category, needsReview: json.needsReview } : prev);
+    } catch (e) {
+      setActionError((e as Error).message || "Unable to set category.");
+    } finally {
+      setCategorizingIds((prev) => { const next = new Set(prev); next.delete(target.id); return next; });
+    }
+  }, []);
 
   const emails = data?.emails ?? [];
   const total = data?.total ?? 0;
@@ -206,24 +309,67 @@ export default function InboxCard({ onLatest }: { onLatest?: (email: InboxEmail 
               const sender = email.senderName || email.senderEmail || email.from || "Unknown sender";
               return (
                 <li key={email.messageId || email.id} className="flex items-center gap-[14px] p-[12px] rounded-[20px] hover:bg-[#f9fafb] transition-colors">
-                  <span className={`${themeFor(sender)} w-[40px] h-[40px] rounded-full flex items-center justify-center text-[12px] font-bold shrink-0`}>
-                    {initials(sender)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-[12px]">
-                      <p className="font-bold text-[14px] text-black truncate">{sender}</p>
-                      <time className="text-[10px] font-semibold text-[#9ca3af] shrink-0" dateTime={email.receivedAt}>{formatWhen(email.receivedAt)}</time>
-                    </div>
-                    <p className="text-[12px] font-medium text-[#6b7280] truncate">
-                      <span className="text-[#374151]">{email.subject}</span>
-                      {email.preview ? ` — ${email.preview}` : ""}
-                    </p>
-                    {(email.detectedDate || email.calendarEventId) && (
-                      <div className="flex gap-[6px] mt-[4px]">
-                        {email.detectedDate && <Chip>Deadline {email.detectedDate}</Chip>}
-                        {email.calendarEventId && <Chip>On calendar</Chip>}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setOpenEmailId(email.id)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenEmailId(email.id); } }}
+                    className="flex items-center gap-[14px] min-w-0 flex-1 cursor-pointer text-left"
+                  >
+                    <span className={`${themeFor(sender)} w-[40px] h-[40px] rounded-full flex items-center justify-center text-[12px] font-bold shrink-0`}>
+                      {initials(sender)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-[12px]">
+                        <p className="font-bold text-[14px] text-black truncate">{sender}</p>
+                        <time className="text-[10px] font-semibold text-[#9ca3af] shrink-0" dateTime={email.receivedAt}>{formatWhen(email.receivedAt)}</time>
                       </div>
-                    )}
+                      <p className="text-[12px] font-medium text-[#6b7280] truncate">
+                        <span className="text-[#374151]">{email.subject}</span>
+                        {email.preview ? ` — ${email.preview}` : ""}
+                      </p>
+                      {(email.detectedDate || email.calendarEventId || email.category || categories.length > 0) && (
+                        <div className="flex items-center justify-between gap-[8px] mt-[4px] flex-wrap">
+                          <div className="flex items-center gap-[6px]">
+                            {email.detectedDate && <Chip>Deadline {email.detectedDate}</Chip>}
+                            {email.calendarEventId && (
+                              <span className="flex items-center gap-[4px]">
+                                <Chip>On calendar</Chip>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleRemoveEvent(email); }}
+                                  disabled={addingIds.has(email.id)}
+                                  type="button"
+                                  className="text-[10px] font-semibold text-[#9ca3af] hover:text-[#dc2626] disabled:opacity-50 transition"
+                                >
+                                  {addingIds.has(email.id) ? "…" : "Remove"}
+                                </button>
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-[6px] shrink-0">
+                            {email.detectedDate && !email.calendarEventId && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleAddEvent(email); }}
+                                disabled={addingIds.has(email.id)}
+                                type="button"
+                                className="text-[10px] font-semibold text-white bg-black rounded-full px-[10px] py-[3px] hover:opacity-90 disabled:opacity-50 transition shrink-0"
+                              >
+                                {addingIds.has(email.id) ? "Adding…" : "+ Add event"}
+                              </button>
+                            )}
+                            {(email.category || categories.length > 0) && (
+                              <CategoryPicker
+                                category={email.category}
+                                needsReview={email.needsReview}
+                                categories={categories}
+                                busy={categorizingIds.has(email.id)}
+                                onSet={(category) => handleSetCategory(email, category)}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </li>
               );
@@ -231,6 +377,10 @@ export default function InboxCard({ onLatest }: { onLatest?: (email: InboxEmail 
           </ul>
         )}
       </div>
+
+      {actionError && (
+        <p className="text-[11px] font-medium text-[#dc2626] pt-[8px] shrink-0">{actionError}</p>
+      )}
 
       {/* Pagination */}
       <div className="flex items-center justify-between gap-[12px] pt-[12px] mt-[8px] border-t border-[#f3f4f6] shrink-0">
@@ -249,12 +399,134 @@ export default function InboxCard({ onLatest }: { onLatest?: (email: InboxEmail 
           <PagerButton disabled={page >= pages} onClick={() => setPage(page + 1)} label="Next page">›</PagerButton>
         </nav>
       </div>
+
+      {openEmailId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-[16px]"
+          onClick={() => setOpenEmailId(null)}
+        >
+          <div
+            className="bg-white rounded-[24px] shadow-xl w-full max-w-[560px] max-h-[80vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-[12px] p-[20px] border-b border-[#f3f4f6] shrink-0">
+              <h3 className="font-bold text-[16px] text-black truncate">{detail?.subject || "Email"}</h3>
+              <button
+                onClick={() => setOpenEmailId(null)}
+                aria-label="Close"
+                type="button"
+                className="w-[32px] h-[32px] rounded-full hover:bg-[#f3f4f6] flex items-center justify-center text-[#6b7280] shrink-0"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-[20px]">
+              {detailLoading ? (
+                <p className="text-[13px] text-[#9ca3af]">Loading…</p>
+              ) : detailError ? (
+                <p className="text-[13px] text-[#dc2626]">{detailError}</p>
+              ) : detail ? (
+                <>
+                  <div className="flex items-start justify-between gap-[12px] mb-[12px]">
+                    <div className="min-w-0">
+                      <p className="font-bold text-[14px] text-black truncate">{detail.senderName || detail.senderEmail}</p>
+                      <p className="text-[12px] text-[#9ca3af] truncate">{detail.senderEmail || detail.from}</p>
+                    </div>
+                    <time className="text-[11px] text-[#9ca3af] shrink-0">{formatWhen(detail.receivedAt)}</time>
+                  </div>
+                  {(detail.detectedDate || detail.calendarEventId || detail.category || categories.length > 0) && (
+                    <div className="flex items-center justify-between gap-[8px] mb-[16px] flex-wrap">
+                      <div className="flex items-center gap-[6px]">
+                        {detail.detectedDate && <Chip>Deadline {detail.detectedDate}</Chip>}
+                        {detail.calendarEventId && (
+                          <span className="flex items-center gap-[4px]">
+                            <Chip>On calendar</Chip>
+                            <button
+                              onClick={() => handleRemoveEvent(detail)}
+                              disabled={addingIds.has(detail.id)}
+                              type="button"
+                              className="text-[10px] font-semibold text-[#9ca3af] hover:text-[#dc2626] disabled:opacity-50 transition"
+                            >
+                              {addingIds.has(detail.id) ? "…" : "Remove"}
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-[6px] shrink-0">
+                        {detail.detectedDate && !detail.calendarEventId && (
+                          <button
+                            onClick={() => handleAddEvent(detail)}
+                            disabled={addingIds.has(detail.id)}
+                            type="button"
+                            className="text-[10px] font-semibold text-white bg-black rounded-full px-[10px] py-[3px] hover:opacity-90 disabled:opacity-50 transition shrink-0"
+                          >
+                            {addingIds.has(detail.id) ? "Adding…" : "+ Add event"}
+                          </button>
+                        )}
+                        {(detail.category || categories.length > 0) && (
+                          <CategoryPicker
+                            category={detail.category}
+                            needsReview={detail.needsReview}
+                            categories={categories}
+                            busy={categorizingIds.has(detail.id)}
+                            onSet={(category) => handleSetCategory(detail, category)}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-[13px] text-[#374151] whitespace-pre-wrap leading-[20px]">{detail.body}</p>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
 function Chip({ children }: { children: ReactNode }) {
   return <span className="text-[10px] font-semibold text-[#4b5563] bg-[#f3f4f6] rounded-full px-[8px] py-[2px]">{children}</span>;
+}
+
+/**
+ * Inline category assign/correct control. The <select> always reflects the
+ * current category (or a placeholder), so changing it is always a valid
+ * action. A prediction the model is unsure about can't be "confirmed" by
+ * re-picking the same already-selected option (no change event fires), so
+ * a needs-review badge doubles as a one-click "accept as-is" button.
+ */
+function CategoryPicker({ category, needsReview, categories, busy, onSet }: {
+  category?: string | null;
+  needsReview?: boolean;
+  categories: CategoryOption[];
+  busy: boolean;
+  onSet: (category: string) => void;
+}) {
+  return (
+    <span className="flex items-center gap-[6px]" onClick={(e) => e.stopPropagation()}>
+      {needsReview && category && (
+        <button
+          type="button"
+          onClick={() => onSet(category)}
+          disabled={busy}
+          className="text-[10px] font-semibold text-[#b45309] bg-[#fef3c7] rounded-full px-[8px] py-[2px] hover:opacity-80 disabled:opacity-50 transition"
+        >
+          Needs review · Confirm
+        </button>
+      )}
+      <select
+        value={category ?? ""}
+        disabled={busy || categories.length === 0}
+        onChange={(e) => { if (e.target.value) onSet(e.target.value); }}
+        className="text-[10px] font-semibold text-[#4b5563] bg-white border border-[#e5e7eb] rounded-full pl-[8px] pr-[4px] py-[2px] outline-none focus:border-black max-w-[130px] truncate disabled:opacity-50"
+      >
+        <option value="" disabled>{categories.length === 0 ? "No categories yet" : "Categorize…"}</option>
+        {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+      </select>
+    </span>
+  );
 }
 
 function PagerButton({ children, onClick, disabled, active, label }: {

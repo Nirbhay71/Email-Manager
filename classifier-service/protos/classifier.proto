@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package emailclassifier;
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+service EmailClassifier {
+  // Store a manually-labeled, accepted, or corrected email. Updates the
+  // per-user, per-category vector store and returns whether this store just
+  // crossed the auto-classify threshold for that category.
+  rpc EmbedAndStore (StoreRequest) returns (StoreResponse);
+
+  // Classify a new incoming email using only that user's history.
+  rpc Classify (ClassifyRequest) returns (ClassifyResponse);
+
+  // Record user feedback (accept or correction) on a prediction. This is
+  // the "online learning" hook -- it writes back into the vector store.
+  rpc AddFeedback (FeedbackRequest) returns (FeedbackResponse);
+
+  // Get per-category example counts + whether auto-classification is
+  // enabled yet for each category. Node uses this to drive the
+  // "X more emails until auto-categorization kicks in" UI.
+  rpc GetCategoryStatus (CategoryStatusRequest) returns (CategoryStatusResponse);
+}
+
+// ---------------------------------------------------------------------------
+// Shared
+// ---------------------------------------------------------------------------
+message EmailContent {
+  string email_id = 1;
+  string subject = 2;
+  string body_snippet = 3;   // truncated/cleaned body, not the full raw email
+  string sender = 4;
+}
+
+enum LabelSource {
+  MANUAL = 0;      // part of the initial 50-100 training batch
+  ACCEPTED = 1;     // user accepted an auto-prediction
+  CORRECTED = 2;    // user overrode an auto-prediction
+}
+
+// ---------------------------------------------------------------------------
+// EmbedAndStore
+// ---------------------------------------------------------------------------
+message StoreRequest {
+  string user_id = 1;
+  EmailContent email = 2;
+  string category = 3;
+  LabelSource source = 4;
+}
+
+message StoreResponse {
+  bool success = 1;
+  int32 category_count = 2;      // total examples now in this category
+  bool threshold_crossed = 3;    // true only on the call that crosses MIN_EXAMPLES
+}
+
+// ---------------------------------------------------------------------------
+// Classify
+// ---------------------------------------------------------------------------
+message ClassifyRequest {
+  string user_id = 1;
+  EmailContent email = 2;
+}
+
+message ClassifyResponse {
+  string predicted_category = 1;
+  float confidence = 2;              // 0.0 - 1.0
+  bool needs_review = 3;             // true if confidence is low OR category is below threshold
+  string reasoning = 4;              // short LLM-provided justification
+  repeated string candidate_categories = 5;  // runner-up categories, if any
+  bool cold_start = 6;               // true if predicted_category has too few examples to trust
+}
+
+// ---------------------------------------------------------------------------
+// AddFeedback
+// ---------------------------------------------------------------------------
+message FeedbackRequest {
+  string user_id = 1;
+  EmailContent email = 2;
+  string correct_category = 3;
+  string predicted_category = 4;
+  bool was_correct = 5;
+}
+
+message FeedbackResponse {
+  bool success = 1;
+  int32 category_count = 2;
+  bool threshold_crossed = 3;
+}
+
+// ---------------------------------------------------------------------------
+// GetCategoryStatus
+// ---------------------------------------------------------------------------
+message CategoryStatusRequest {
+  string user_id = 1;
+}
+
+message CategoryStatus {
+  string category = 1;
+  int32 count = 2;
+  bool auto_classify_enabled = 3;
+  int32 examples_needed = 4;   // 0 if already enabled
+}
+
+message CategoryStatusResponse {
+  repeated CategoryStatus categories = 1;
+}

@@ -1,10 +1,11 @@
 import { User } from "../models/user.model.js";
 import { Email } from "../models/email.model.js";
+import { Category } from "../models/category.model.js";
 import { getNewMessagesSince, getMessage } from "../service/gmail.service.js";
 import { extractDate } from "../service/dateExtractor.service.js";
-import { createDeadlineEvent } from "../service/calendar.service.js";
 import { sendTestSms } from "../service/sms.service.js";
 import { embedAndStoreEmail } from "../service/embeddingClient.js";
+import { classifyEmail } from "../grpc/classifierClient.js";
 
 export const handleGmailWebhook = async (req, res) => {
     try {
@@ -25,6 +26,9 @@ export const handleGmailWebhook = async (req, res) => {
         const tokens = user.tokensPlain;
         const startHistoryId = user.historyId || newHistoryId;
         const messageIds = await getNewMessagesSince(tokens, startHistoryId);
+        // Skip the classify gRPC round-trip entirely for users who haven't
+        // created any categories yet — the common case for most users.
+        const hasCategories = await Category.exists({ userEmail: emailAddress });
         for (const id of messageIds) {
             const existingEmail = await Email.findOne({ messageId: id });
             if (existingEmail) continue;
@@ -61,6 +65,32 @@ export const handleGmailWebhook = async (req, res) => {
                 }).catch(embedErr => {
                     console.warn(`[webhook] Vector embedding warning for ${id}: ${embedErr.message}`);
                 });
+
+                // Fire-and-forget auto-classification, once the user has at least
+                // one category to classify into.
+                if (hasCategories) {
+                    classifyEmail(emailAddress, {
+                        email_id: id,
+                        subject: msg.subject || "",
+                        body_snippet: (msg.body || "").slice(0, 500),
+                        sender: msg.from
+                    }).then(async (result) => {
+                        if (!result || result.predicted_category === "Unclassified") return;
+                        await Email.updateOne(
+                            { messageId: id, userEmail: emailAddress },
+                            {
+                                $set: {
+                                    category: result.predicted_category,
+                                    confidence: result.confidence,
+                                    needsReview: result.needs_review,
+                                    classifyReasoning: result.reasoning || null
+                                }
+                            }
+                        );
+                    }).catch(classifyErr => {
+                        console.warn(`[webhook] Classification warning for ${id}: ${classifyErr.message}`);
+                    });
+                }
             } catch (dbErr) {
                 if (dbErr.code === 11000) {
                     console.log(`[webhook] duplicate email ${id}, skipping`);
@@ -71,21 +101,16 @@ export const handleGmailWebhook = async (req, res) => {
             }
 
             if (!isoDate) {
-                console.log("[webhook] no date found, skipping calendar+SMS");
+                console.log("[webhook] no date found, skipping SMS");
                 continue;
             }
-            const event = await createDeadlineEvent(tokens, {
-                title: `Deadline: ${msg.subject}`,
-                isoDate,
-                description: `Auto-detected from email sent by ${msg.from}`
-            });
-            console.log(`[webhook] calendar event created: ${event.htmlLink}`);
-            emailRecord.calendarEventId = event.id;
-            await emailRecord.save();
 
+            // No longer auto-creating the calendar event here — the user decides
+            // per-email via the "Add event" button in the inbox, since not every
+            // detected date is actually worth putting on the calendar.
             try {
                 const sid = await sendTestSms(
-                    `Deadline ${isoDate} found in "${msg.subject}". Calendar event created.`
+                    `Deadline ${isoDate} found in "${msg.subject}". Add it to your calendar from the inbox if you need it.`
                 );
                 console.log(`[webhook] SMS sent, sid=${sid}`);
                 emailRecord.smsSent = true;
