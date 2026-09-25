@@ -46,16 +46,6 @@ function MailIcon() {
   );
 }
 
-function CalendarIcon() {
-  return (
-    <svg {...svgProps}>
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <path d="M16 2v4M8 2v4M3 10h18" />
-      <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
-    </svg>
-  );
-}
-
 export function AssistantIcon({ size = 24 }: { size?: number }) {
   return (
     <svg {...svgProps} width={size} height={size}>
@@ -101,7 +91,8 @@ export default function NavRail({ active, reserve = true }: { active: NavKey; re
           <div className="flex flex-col gap-[24px] items-center w-[40px]">
             <NavButton active={active === "inbox"} to="/inbox" label="Inbox"><InboxIcon /></NavButton>
             <NavButton active={active === "mail"} to="/mail" label="All mail"><MailIcon /></NavButton>
-            <NavButton active={active === "management"} to="/management" label="Calendar"><CalendarIcon /></NavButton>
+            {/* "Calendar" nav entry hidden until ManagementPage is a real calendar view —
+                today it renders an unrelated placeholder import and would look broken. */}
             <NavButton active={active === "ai-chat"} to="/ai-chat" label="AI assistant"><AssistantIcon /></NavButton>
           </div>
         </div>

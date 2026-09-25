@@ -88,6 +88,12 @@ The importance engine explains *why* an email is scored highly. Using feature at
 ### ⚡ Real-Time Gmail Sync
 Seamless Google OAuth integration and Gmail Pub/Sub webhooks ensure your dashboard is always synchronized in real-time.
 
+### 🏷️ Custom Categories & Auto-Classification
+Each user defines their own categories and manually assigns a handful of emails to each. Once a category crosses a configurable example threshold, a dedicated classifier microservice starts auto-tagging new incoming mail into it — a fast k-NN pass over per-user email embeddings handles clear-cut cases, falling back to a Gemini reasoning call (comparing candidate categories via an auto-maintained summary) only when the match is ambiguous. Low-confidence picks are flagged "needs review" and correctable with one click, which feeds back into training.
+
+### 📅 User-Controlled Calendar Events
+Dates detected in incoming email are surfaced as a "Deadline" chip, not auto-added to Google Calendar — the user adds or removes the event with one click, since not every detected date is worth scheduling.
+
 ---
 
 ## 🏗 System Architecture
@@ -118,6 +124,12 @@ graph TD
             CAL["Platt Scaling Calibration"]
             XAI["Feature Attribution"]
         end
+
+        subgraph "Classifier Service (gRPC)"
+            CEMB["Per-user Embeddings (BGE + ChromaDB)"]
+            CONF["k-NN Confidence Scoring"]
+            REASON["Gemini Reasoning (ambiguous cases)"]
+        end
     end
 
     UI <--> ROUTES
@@ -125,6 +137,7 @@ graph TD
     AUTH <--> MONGO
     ROUTES <--> QR
     ROUTES <--> FE
+    ROUTES <--> CEMB
     
     QR --> RRF
     RRF --> CE
@@ -133,6 +146,9 @@ graph TD
     FE --> LGBM
     LGBM --> CAL
     CAL --> XAI
+
+    CEMB --> CONF
+    CONF --> REASON
 ```
 
 ---
@@ -176,7 +192,7 @@ Our platform leverages a specialized stack distributed across Node.js and Python
 > `python-service/importance_model/` don't exist in this repo yet, and
 > `python-service/` currently only runs a legacy gRPC search/Q&A service
 > that predates `search_feature_demo/` and isn't wired into the backend
-> (see [`okf/operations/known-issues.md`](okf/operations/known-issues.md)).
+> (see [`docs/okf/operations/known-issues.md`](docs/okf/operations/known-issues.md)).
 > The folder tree below reflects what's actually in the repo today.
 
 ```text
@@ -186,17 +202,18 @@ Email-Manager/
 │   └── src/
 │       ├── config/                # Google OAuth client configuration
 │       ├── controllers/           # Request handlers (auth, webhook, chat, calendar, category, email)
-│       ├── grpc/                  # gRPC client stub for search_feature_demo's SearchService
+│       ├── grpc/                  # gRPC client stubs for search_feature_demo's SearchService and classifier-service's EmailClassifier
 │       ├── middleware/            # requireAuth (JWT) and verifyPubSub (webhook OIDC verification)
 │       ├── models/                # Mongoose schemas (User, Email, Category, ChatSession)
 │       ├── routes/                # Express API endpoints (/auth, /ask, /search, /chat, /calendar, /categories, /emails, /webhook)
 │       ├── service/ & services/   # Core business logic (gmail, calendar, dateExtractor, sms, embeddingClient)
 │       └── utils/                 # token.utils.js (JWT/cookies), crypto.utils.js (token encryption/hashing)
 │
-├── frontend/                      # 🔵 React UI (Login, Inbox, AI Chat, Management)
+├── frontend/                      # 🔵 React UI (Login, Inbox, All Mail, AI Chat, Management)
 │   └── src/
 │       ├── assets/                # Global CSS (Tailwind index), static images
-│       ├── pages/                 # LoginPage, InboxPage, AIChatPage, ManagementPage
+│       ├── components/inbox/      # InboxCard (list, search, add/remove event, categorize picker), CategoriesCard, CalendarCard
+│       ├── pages/                 # LoginPage, InboxPage, MailPage, AIChatPage, ManagementPage
 │       └── utils/                 # api.ts — fetch wrapper with cookie auth + silent token refresh
 │
 ├── search_feature_demo/           # 🔍 Python Hybrid Search & RAG microservice (the one the backend actually talks to)
@@ -212,9 +229,16 @@ Email-Manager/
 ├── python-service/                # 🧠 Legacy Q&A gRPC service — not currently used by the backend
 │   └── server.py                  # Older EmailSearchService (EmbedAndStore, AskQuestion) on port 50051
 │
-├── classifier-service/            # ⚠️ Incomplete — no entry point, not functional
+├── classifier-service/            # 🏷️ Per-user email category classifier (gRPC, port 50053)
+│   ├── protos/classifier.proto    # EmailClassifier service: EmbedAndStore, Classify, AddFeedback, GetCategoryStatus
+│   ├── services/                  # classifier_embedder (BGE), classifier_chroma_store (per-user Chroma collections)
+│   ├── services/pipeline/         # retrieval → confidence scoring → (lazy summary refresh +) Gemini reasoning orchestrator
+│   └── classifier_server.py       # Entry point — generates its own gRPC stubs on first run
 │
-├── SECURITY_NOTES.md              # What's been hardened and what's still open
+├── docs/
+│   ├── SECURITY_NOTES.md          # What's been hardened and what's still open
+│   └── okf/                       # Internal knowledge base (architecture notes, known issues)
+│
 ├── SECRET_ROTATION_CHECKLIST.md   # Manual steps to rotate/generate secrets before deploying
 └── README.md                      # This document
 ```
@@ -230,7 +254,15 @@ Email-Manager/
 - **Reranker**: A cross-encoder validates the top K results for maximum precision.
 - **AI Copilot (`AskQuestion`)**: Retrieves context via the same pipeline, then streams a grounded answer from Gemini, rotating across up to 4 configured API keys as each hits its quota.
 
-### 2. Importance Engine (LightGBM) — planned, not yet implemented
+### 2. Per-User Email Classification
+- **Manual bootstrap**: each user creates categories and labels a handful of emails into them via the inbox's inline picker.
+- **Per-user vector store**: every labeled example is embedded (`BAAI/bge-large-en-v1.5`) and stored in a Chroma collection scoped to that user only.
+- **Fast path**: a new email's embedding is compared via k-NN against the user's labeled examples; a clear, high-margin match is applied immediately, no LLM call.
+- **Ambiguous path**: when the top matches are close, Gemini reasons between the candidate categories using an auto-maintained (and lazily refreshed) summary of each — cheaper than re-sending every example.
+- **Threshold gating**: a category only starts auto-classifying once it has enough manually-labeled examples (`MIN_EXAMPLES_PER_CATEGORY`, default 15); below that, predictions are always flagged "needs review".
+- **Feedback loop**: confirming or correcting a prediction (via the same picker) retrains that example in place — a correction also cleans up the old, wrongly-labeled vector.
+
+### 3. Importance Engine (LightGBM) — planned, not yet implemented
 The global-model-plus-per-user-calibration design described above is the
 target architecture; the feature-engineering pipeline and scoring API it
 depends on haven't been built in this repo yet.
@@ -239,15 +271,16 @@ depends on haven't been built in this repo yet.
 
 ## 📦 Installation
 
-Three services need to run together for the full app to work: **backend**
-(Node/Express API), **frontend** (React/Vite UI), and
-**search_feature_demo** (Python — search, RAG/AI chat, embeddings). Start
-them in this order so each one has what it depends on when it starts.
+Four services need to run together for the full app to work: **backend**
+(Node/Express API), **frontend** (React/Vite UI), **search_feature_demo**
+(Python — search, RAG/AI chat, embeddings), and **classifier-service**
+(Python — per-user category classification). Start them in this order so
+each one has what it depends on when it starts.
 
 ### Prerequisites
 - Node.js `v18+`
 - Python `3.11+`
-- MongoDB running on `localhost:27017`
+- MongoDB running locally (all backend services must point at the *same* instance/database)
 - NVIDIA GPU with CUDA support (recommended for the search pipeline; CPU also works, just slower)
 - A [Gemini API key](https://aistudio.google.com/apikey) (up to 4, for automatic quota rotation — see below)
 
@@ -263,7 +296,9 @@ real values — see [Environment Variables](#-environment-variables) below
 for what each one does and how to generate the secrets:
 ```bash
 cp backend/src/.env.example backend/src/.env
+cp frontend/.env.example frontend/.env
 cp search_feature_demo/.env.example search_feature_demo/.env
+cp classifier-service/.env.example classifier-service/.env
 ```
 
 ### 3. Backend Setup
@@ -292,12 +327,22 @@ python -m spacy download en_core_web_sm
 python main.py             # Starts HTTP (8001) and gRPC (50052)
 ```
 
-### 6. Sign in
+### 6. Category Classifier Microservice
+Powers auto-classification once a category has enough manually-labeled examples.
+```bash
+cd classifier-service
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python classifier_server.py   # Starts gRPC on port 50053; downloads the BGE embedding model on first run
+```
+
+### 7. Sign in
 Open `http://localhost:5173`, sign in with Google, and the OAuth flow will
 create your user record and start syncing your inbox.
 
-`python-service/` and `classifier-service/` don't need to be running for
-the app to work — see the [Folder Structure](#-comprehensive-folder-structure) note above.
+`python-service/` is legacy and doesn't need to be running for the app to
+work — see the [Folder Structure](#-comprehensive-folder-structure) note above.
 
 ---
 
@@ -309,7 +354,7 @@ these from scratch — it documents every variable inline. Summary:
 **Backend (`backend/src/.env`)** — note the path: `backend/src/index.js` loads dotenv from `./src/.env`, not `backend/.env`.
 ```env
 PORT=5000
-NODE_ENV=development
+NODE_ENV=development                 # "production" once actually deployed — flips cookies to Secure-only
 FRONTEND_URL=http://localhost:5173
 MONGO_URI=mongodb://localhost:27017/ai_email_manager
 
@@ -328,15 +373,26 @@ JWT_ACCESS_SECRET=
 # 32-byte (64 hex char) key encrypting stored Google tokens at rest — generate with randomBytes(32)
 TOKEN_ENCRYPTION_KEY=
 
-# Shared secret with the Python services below (same value in all three .env files)
+# Shared secret with all three Python services below (same value in every .env file).
+# Required for the gRPC calls to actually be accepted once those services run with ENVIRONMENT=production.
 SERVICE_TOKEN=
 HYBRID_SEARCH_GRPC_HOST=localhost:50052
+CLASSIFIER_GRPC_HOST=localhost:50053
 
-# Twilio (SMS deadline alerts)
+# Twilio (SMS deadline alerts) — SMS_ENABLED defaults to false because
+# sendTestSms always texts TWILIO_TEST_TO_NUMBER, not the signed-in user;
+# only turn it on once per-user phone numbers exist.
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_FROM_NUMBER=
 TWILIO_TEST_TO_NUMBER=
+SMS_ENABLED=false
+```
+
+**Frontend (`frontend/.env`)**
+```env
+# Backend API origin — only needs to change once frontend and backend are hosted on different origins.
+VITE_API_URL=http://localhost:5000
 ```
 
 **Python Search Service (`search_feature_demo/.env`)**
@@ -357,10 +413,24 @@ GEMINI_API_KEY_4=
 # Must match backend's SERVICE_TOKEN. Leave SERVICE_TOKEN empty only with ENVIRONMENT=development.
 SERVICE_TOKEN=
 ENVIRONMENT=development
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
-See `backend/src/.env.example` and `search_feature_demo/.env.example` for
-the full, inline-documented list (retrieval tuning, timeouts, cache, and
+**Classifier Service (`classifier-service/.env`)**
+```env
+MONGO_URI=mongodb://localhost:27017/ai_email_manager   # must match the backend's MONGO_URI exactly
+GEMINI_API_KEY=your_gemini_api_key
+CHROMA_PERSIST_DIR=./chroma_data_classifier
+GRPC_PORT=50053
+MIN_EXAMPLES_PER_CATEGORY=15   # examples a category needs before auto-classify turns on
+
+# Must match backend's SERVICE_TOKEN. Leave SERVICE_TOKEN empty only with ENVIRONMENT=development.
+SERVICE_TOKEN=
+ENVIRONMENT=development
+```
+
+See each service's `.env.example` for the full, inline-documented list
+(retrieval tuning, timeouts, cache, confidence thresholds, and
 `python-service/.env.example` if you're running the legacy service).
 `SECRET_ROTATION_CHECKLIST.md` has step-by-step commands for generating
 every secret above.

@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -57,6 +58,13 @@ app.get("/", (req, res) => {
     res.send("AI Email Manager — go to /auth/google to register.");
 });
 
+// Used by hosting platforms / process managers to know the process is up and
+// actually connected to MongoDB, not just that Node is running.
+app.get("/health", (req, res) => {
+    const dbUp = mongoose.connection.readyState === 1; // 1 = connected
+    res.status(dbUp ? 200 : 503).json({ status: dbUp ? "ok" : "degraded", db: dbUp ? "up" : "down" });
+});
+
 app.use("/auth/refresh", authLimiter);
 app.use("/auth", authRoutes);      // /auth/google, /auth/google/callback, /auth/refresh (public)
 app.use("/webhook", webhookRoutes);   // called by Google Pub/Sub, not by users
@@ -68,5 +76,16 @@ app.use("/emails", requireAuth, emailRoutes);
 app.use("/categories", requireAuth, categoryRoutes);
 app.use("/calendar", requireAuth, calendarRoutes);
 app.use("/chat", requireAuth, chatRoutes);
+
+// ─── 404 + error handlers (must stay last) ────────────────────────────────────
+app.use((req, res) => {
+    res.status(404).json({ error: "Not found" });
+});
+
+// eslint-disable-next-line no-unused-vars -- Express requires 4 params to recognize an error handler
+app.use((err, req, res, next) => {
+    console.error("[app] unhandled error:", err);
+    res.status(err.status || 500).json({ error: "Internal server error" });
+});
 
 export default app;

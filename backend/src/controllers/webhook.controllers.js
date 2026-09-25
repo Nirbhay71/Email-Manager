@@ -108,15 +108,22 @@ export const handleGmailWebhook = async (req, res) => {
             // No longer auto-creating the calendar event here — the user decides
             // per-email via the "Add event" button in the inbox, since not every
             // detected date is actually worth putting on the calendar.
-            try {
-                const sid = await sendTestSms(
-                    `Deadline ${isoDate} found in "${msg.subject}". Add it to your calendar from the inbox if you need it.`
-                );
-                console.log(`[webhook] SMS sent, sid=${sid}`);
-                emailRecord.smsSent = true;
-                await emailRecord.save();
-            } catch (smsErr) {
-                console.warn(`[webhook] SMS failed (non-fatal): ${smsErr.message}`);
+            //
+            // SMS is gated behind SMS_ENABLED: sendTestSms always texts a single
+            // fixed TWILIO_TEST_TO_NUMBER, not the signed-in user, so with more
+            // than one real user it would text the wrong (or same) phone every
+            // time. Leave disabled until per-user phone numbers exist.
+            if (process.env.SMS_ENABLED === "true") {
+                try {
+                    const sid = await sendTestSms(
+                        `Deadline ${isoDate} found in "${msg.subject}". Add it to your calendar from the inbox if you need it.`
+                    );
+                    console.log(`[webhook] SMS sent, sid=${sid}`);
+                    emailRecord.smsSent = true;
+                    await emailRecord.save();
+                } catch (smsErr) {
+                    console.warn(`[webhook] SMS failed (non-fatal): ${smsErr.message}`);
+                }
             }
         }
         user.historyId = newHistoryId;

@@ -5,7 +5,7 @@
  *  - Redirect to login if refresh also fails
  */
 
-const BACKEND = 'http://localhost:5000';
+const BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 let isRefreshing = false;
 let refreshQueue: Array<{ resolve: () => void; reject: (err: unknown) => void }> = [];
