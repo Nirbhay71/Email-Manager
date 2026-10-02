@@ -66,6 +66,7 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/auth/refresh", authLimiter);
+app.use("/auth/account", authLimiter);
 app.use("/auth", authRoutes);      // /auth/google, /auth/google/callback, /auth/refresh (public)
 app.use("/webhook", webhookRoutes);   // called by Google Pub/Sub, not by users
 

@@ -17,6 +17,14 @@ def _collection_name(user_email: str) -> str:
         valid_name = f"clf_{valid_name}"
     return valid_name
 
+def delete_user_collection(user_email: str) -> None:
+    name = _collection_name(user_email)
+    try:
+        _client.delete_collection(name=name)
+    except Exception:
+        # Collection never existed (user never labeled anything) — nothing to delete.
+        pass
+
 def get_collection(user_email: str):
     return _client.get_or_create_collection(
         name=_collection_name(user_email),

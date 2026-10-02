@@ -24,6 +24,24 @@ const UserSchema = new mongoose.Schema({
         type: Boolean,
         default: null
     },
+    // When the current Gmail Pub/Sub watch lapses (Gmail caps watches at 7 days).
+    // jobs/gmailWatch.job.js renews any watch close to this.
+    watchExpiration: {
+        type: Date,
+        default: null
+    },
+    // Set when Google rejects our stored refresh token (user revoked access,
+    // password change, or the 7-day testing-mode expiry). Cleared on next login.
+    needsReauth: {
+        type: Boolean,
+        default: false
+    },
+    // Progress of the one-time import of existing inbox mail after first sign-in.
+    backfillStatus: {
+        type: String,
+        enum: ["pending", "running", "done", "failed"],
+        default: "pending"
+    },
     // Opaque refresh tokens for our own JWT auth (rotating token strategy).
     // `token` stores a SHA-256 hash of the value handed to the client, never the raw value.
     // `usedAt` is set the moment a token is redeemed; a second redemption of an

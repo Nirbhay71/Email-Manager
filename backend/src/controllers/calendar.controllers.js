@@ -1,5 +1,6 @@
 import { User } from "../models/user.model.js";
 import { listCalendarEvents } from "../service/calendar.service.js";
+import { flagIfReauthNeeded } from "../service/ingest.service.js";
 
 export const getCalendarEvents = async (req, res) => {
     try {
@@ -24,6 +25,9 @@ export const getCalendarEvents = async (req, res) => {
             total: events.length,
         });
     } catch (error) {
+        if (await flagIfReauthNeeded(req.user.email, error)) {
+            return res.status(401).json({ error: "Google access expired — please sign in again", code: "GOOGLE_REAUTH_REQUIRED" });
+        }
         console.error("[calendar] events error:", error);
         res.status(500).json({ error: "Unable to load calendar events" });
     }

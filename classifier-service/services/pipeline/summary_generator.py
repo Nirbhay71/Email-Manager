@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 
+from services.gemini_limiter import call_gemini, GeminiUnavailable
+
 logger = logging.getLogger("SummaryGenerator")
 
 class SummaryUpdateResult(BaseModel):
@@ -13,9 +15,11 @@ class SummaryUpdateResult(BaseModel):
 
 class SummaryGeneratorStrategy(ABC):
     @abstractmethod
-    def generate_or_update(self, category_name: str, current_summary: str, new_emails: list[dict]) -> str:
+    def generate_or_update(self, category_name: str, current_summary: str, new_emails: list[dict]) -> str | None:
         """
         Regenerate/update the summary for a category based on new emails.
+        Returns None when the update couldn't be made, so callers keep the
+        pending emails queued for the next attempt instead of discarding them.
         """
         pass
 
@@ -62,13 +66,19 @@ Return the result matching the response schema."""
                 response_schema=SummaryUpdateResult,
                 temperature=0.2,
             )
-            response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=user_message,
-                config=config,
+            response = call_gemini(
+                lambda model: self.client.models.generate_content(
+                    model=model,
+                    contents=user_message,
+                    config=config,
+                ),
+                what=f"summary update for '{category_name}'",
             )
             parsed = json.loads(response.text)
             return parsed.get("updated_summary", current_summary).strip()
-        except Exception as e:
-            logger.error(f"Gemini summary generation error: {e}")
-            return current_summary
+        except GeminiUnavailable as e:
+            logger.error(f"Gemini summary generation unavailable: {e}")
+            return None
+        except (TypeError, ValueError) as e:
+            logger.error(f"Gemini summary returned unparseable output: {e}")
+            return None

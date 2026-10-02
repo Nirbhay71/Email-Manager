@@ -26,3 +26,16 @@ export function embedAndStoreEmail({ messageId, userEmail, subject, body }) {
         });
     });
 }
+
+/**
+ * Removes every search vector stored for this user (account deletion).
+ */
+export function deleteUserVectors(userEmail) {
+    return new Promise((resolve, reject) => {
+        hybridSearchClient.DeleteUserData({ user_email: userEmail }, buildServiceMetadata(), (err, response) => {
+            if (err) return reject(err);
+            if (!response.success) return reject(new Error(response.error || "delete failed"));
+            resolve(response);
+        });
+    });
+}

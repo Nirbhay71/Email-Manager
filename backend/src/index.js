@@ -2,6 +2,8 @@ import dotenv from "dotenv";
 dotenv.config({ path: "./src/.env" });
 import connectDB from "./db/index.db.js";
 import app from "./app.js";
+import { scheduleWatchRenewal } from "./jobs/gmailWatch.job.js";
+import { User } from "./models/user.model.js";
 
 // A single unhandled throw or rejected promise shouldn't silently take down
 // every user's session with no trace of why — log it and exit so a process
@@ -22,4 +24,9 @@ connectDB().then(() => {
         console.log(`Server running on http://localhost:${PORT}`);
         console.log(`Expose it with: ngrok http ${PORT}`);
     });
+    scheduleWatchRenewal();
+    // An import that was mid-flight when the process stopped will never finish
+    // on its own — hand it back to "pending" so the next /auth/me restarts it.
+    User.updateMany({ backfillStatus: "running" }, { $set: { backfillStatus: "pending" } })
+        .catch((err) => console.error("[startup] backfill reset failed:", err.message));
 });

@@ -59,7 +59,8 @@ router.post("/", async (req, res) => {
         }
 
         // After streaming is done, persist to DB if sessionId is provided
-        if (sessionId) {
+        // Don't save an empty AI reply into the chat history.
+        if (sessionId && fullAiResponse.trim()) {
             try {
                 // Scoped to the authenticated user — prevents cross-user session injection
                 await ChatSession.findOneAndUpdate(

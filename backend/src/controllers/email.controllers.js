@@ -3,6 +3,7 @@ import { User } from "../models/user.model.js";
 import { Category } from "../models/category.model.js";
 import { createDeadlineEvent, deleteDeadlineEvent } from "../service/calendar.service.js";
 import { storeManualLabel, recordFeedback } from "../grpc/classifierClient.js";
+import { flagIfReauthNeeded } from "../service/ingest.service.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -42,7 +43,7 @@ function toInboxEmail(email) {
         to: email.to,
         subject: email.subject || "(No Subject)",
         preview: toPreview(email.body),
-        receivedAt: email.createdAt,
+        receivedAt: email.receivedAt || email.createdAt,
         detectedDate: email.detectedDate,
         calendarEventId: email.calendarEventId,
         smsSent: email.smsSent,
@@ -93,10 +94,10 @@ export const getInboxEmails = async (req, res) => {
         const safePage = Math.min(page, pages);
 
         const emails = await Email.find(query)
-            .sort({ createdAt: -1 })
+            .sort({ receivedAt: -1, createdAt: -1 })
             .skip((safePage - 1) * limit)
             .limit(limit)
-            .select("messageId from to subject body detectedDate calendarEventId smsSent category needsReview createdAt")
+            .select("messageId from to subject body detectedDate calendarEventId smsSent category needsReview receivedAt createdAt")
             .lean();
 
         res.json({
@@ -131,7 +132,7 @@ export const getEmailById = async (req, res) => {
             to: email.to,
             subject: email.subject || "(No Subject)",
             body: email.body,
-            receivedAt: email.createdAt,
+            receivedAt: email.receivedAt || email.createdAt,
             detectedDate: email.detectedDate,
             calendarEventId: email.calendarEventId,
             smsSent: email.smsSent,
@@ -184,6 +185,9 @@ export const createEmailCalendarEvent = async (req, res) => {
         res.json({ calendarEventId: event.id, htmlLink: event.htmlLink || "" });
     } catch (error) {
         if (error.name === "CastError") return res.status(404).json({ error: "Email not found" });
+        if (await flagIfReauthNeeded(req.user.email, error)) {
+            return res.status(401).json({ error: "Google access expired — please sign in again", code: "GOOGLE_REAUTH_REQUIRED" });
+        }
         console.error("[emails] create calendar event error:", error);
         res.status(500).json({ error: "Unable to create calendar event" });
     }
@@ -216,6 +220,9 @@ export const removeEmailCalendarEvent = async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         if (error.name === "CastError") return res.status(404).json({ error: "Email not found" });
+        if (await flagIfReauthNeeded(req.user.email, error)) {
+            return res.status(401).json({ error: "Google access expired — please sign in again", code: "GOOGLE_REAUTH_REQUIRED" });
+        }
         console.error("[emails] remove calendar event error:", error);
         res.status(500).json({ error: "Unable to remove calendar event" });
     }

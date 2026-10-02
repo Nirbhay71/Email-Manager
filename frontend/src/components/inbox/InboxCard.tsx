@@ -305,7 +305,7 @@ export default function InboxCard({ onLatest, pageSize = DEFAULT_PAGE_SIZE }: {
         ) : emails.length === 0 ? (
           query ? <Empty title="No matches" detail={`Nothing found for “${query}”.`} />
             : tab === "deadlines" ? <Empty title="No deadlines yet" detail="Emails containing a date will be listed here." />
-            : <Empty title="No emails yet" detail="New mail appears here automatically once Gmail notifies the app." />
+            : <Empty title="No emails yet" detail="If you just signed in, your recent inbox is being imported and will appear here shortly. New mail shows up automatically." />
         ) : (
           <ul className="flex flex-col gap-[2px]">
             {emails.map((email) => {

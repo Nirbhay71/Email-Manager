@@ -82,9 +82,16 @@ function Svg() {
   );
 }
 
-function ButtonGoogleAuth() {
+type LoginProps = { onGoogleLogin?: () => void };
+
+function ButtonGoogleAuth({ onGoogleLogin }: LoginProps) {
   return (
-    <div className="bg-[rgba(255,255,255,0)] relative rounded-[8px] shrink-0 w-full" data-name="Button - Google Auth">
+    <button
+      type="button"
+      onClick={onGoogleLogin}
+      className="bg-[rgba(255,255,255,0)] relative rounded-[8px] shrink-0 w-full cursor-pointer hover:bg-[#f9fafb] focus-visible:outline-2 focus-visible:outline-black transition"
+      data-name="Button - Google Auth"
+    >
       <div aria-hidden className="absolute border border-[#e5e7eb] border-solid inset-0 pointer-events-none rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]" />
       <div className="flex flex-row items-center justify-center size-full">
         <div className="content-stretch flex gap-[16px] items-center justify-center px-[25px] py-[17px] relative size-full">
@@ -94,24 +101,24 @@ function ButtonGoogleAuth() {
           </div>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
-function LoginActions() {
+function LoginActions({ onGoogleLogin }: LoginProps) {
   return (
     <div className="content-stretch flex flex-col items-start pb-[16px] relative shrink-0 w-full" data-name="Login Actions">
-      <ButtonGoogleAuth />
+      <ButtonGoogleAuth onGoogleLogin={onGoogleLogin} />
     </div>
   );
 }
 
-function Container() {
+function Container({ onGoogleLogin }: LoginProps) {
   return (
     <div className="content-stretch flex flex-col items-center max-w-[448px] relative shrink-0 w-[448px]" data-name="Container">
       <LogoIconMargin />
       <HeaderTitlesMargin />
-      <LoginActions />
+      <LoginActions onGoogleLogin={onGoogleLogin} />
     </div>
   );
 }
@@ -120,7 +127,7 @@ function Link() {
   return (
     <div className="content-stretch flex flex-col items-start relative self-stretch shrink-0" data-name="Link">
       <div className="[word-break:break-word] flex flex-col font-['Hanken_Grotesk:Regular',sans-serif] font-normal justify-center leading-[0] relative shrink-0 text-[#9ca3af] text-[12px] whitespace-nowrap">
-        <p className="leading-[16px]">Privacy</p>
+        <a className="leading-[16px] hover:text-black" href="/privacy">Privacy</a>
       </div>
     </div>
   );
@@ -138,7 +145,7 @@ function Link1() {
   return (
     <div className="content-stretch flex flex-col items-start relative self-stretch shrink-0" data-name="Link">
       <div className="[word-break:break-word] flex flex-col font-['Hanken_Grotesk:Regular',sans-serif] font-normal justify-center leading-[0] relative shrink-0 text-[#9ca3af] text-[12px] whitespace-nowrap">
-        <p className="leading-[16px]">Terms</p>
+        <a className="leading-[16px] hover:text-black" href="/terms">Terms</a>
       </div>
     </div>
   );
@@ -156,7 +163,7 @@ function Link2() {
   return (
     <div className="content-stretch flex flex-col items-start relative self-stretch shrink-0" data-name="Link">
       <div className="[word-break:break-word] flex flex-col font-['Hanken_Grotesk:Regular',sans-serif] font-normal justify-center leading-[0] relative shrink-0 text-[#9ca3af] text-[12px] whitespace-nowrap">
-        <p className="leading-[16px]">Security</p>
+        <a className="leading-[16px] hover:text-black" href="/privacy#security">Security</a>
       </div>
     </div>
   );
@@ -174,12 +181,12 @@ function FooterBottomLinks() {
   );
 }
 
-function LeftFormSection() {
+function LeftFormSection({ onGoogleLogin }: LoginProps) {
   return (
     <div className="bg-white relative self-stretch shrink-0 w-[672px]" data-name="Left Form Section">
       <div className="flex flex-col items-center justify-center size-full">
         <div className="content-stretch flex flex-col items-center justify-center p-[32px] relative size-full">
-          <Container />
+          <Container onGoogleLogin={onGoogleLogin} />
           <FooterBottomLinks />
         </div>
       </div>
@@ -198,19 +205,19 @@ function RightIllustrationSection() {
   );
 }
 
-function MainLayout() {
+function MainLayout({ onGoogleLogin }: LoginProps) {
   return (
     <div className="content-stretch flex h-[1024px] items-start justify-center min-h-[1024px] relative shrink-0 w-full" data-name="Main Layout">
-      <LeftFormSection />
+      <LeftFormSection onGoogleLogin={onGoogleLogin} />
       <RightIllustrationSection />
     </div>
   );
 }
 
-export default function HtmlBody() {
+export default function HtmlBody({ onGoogleLogin }: LoginProps) {
   return (
     <div className="content-stretch flex flex-col items-start relative size-full" style={{ backgroundImage: "linear-gradient(90deg, rgb(252, 252, 252) 0%, rgb(252, 252, 252) 100%), linear-gradient(90deg, rgb(255, 255, 255) 0%, rgb(255, 255, 255) 100%)" }} data-name="Html → Body">
-      <MainLayout />
+      <MainLayout onGoogleLogin={onGoogleLogin} />
     </div>
   );
 }

@@ -65,6 +65,10 @@ VECTOR_TOP_K: int = int(os.getenv("VECTOR_TOP_K", "200"))
 RRF_K: int = int(os.getenv("RRF_K", "60"))
 RERANK_TOP_N: int = int(os.getenv("RERANK_TOP_N", "100"))
 RERANK_BATCH_SIZE: int = int(os.getenv("RERANK_BATCH_SIZE", "32"))
+# Cross-encoder reranking: "auto" = only on GPU, "always", or "never".
+# bge-reranker-v2-m3 costs ~1.5-2.5s PER CANDIDATE on CPU (minutes per query),
+# while on GPU it's milliseconds; BM25+vector RRF order is used when skipped.
+RERANK_MODE: str = os.getenv("RERANK_MODE", "auto").lower()
 FINAL_LIMIT: int = int(os.getenv("FINAL_LIMIT", "20"))
 
 # ---------------------------------------------------------------------------
@@ -99,6 +103,15 @@ def resolve_device() -> str:
         except ImportError:
             return "cpu"
     return DEVICE
+
+
+def rerank_enabled() -> bool:
+    """Whether to run the cross-encoder, per RERANK_MODE and the device."""
+    if RERANK_MODE == "always":
+        return True
+    if RERANK_MODE == "never":
+        return False
+    return resolve_device() == "cuda"
 
 
 def resolve_mongo_db_name() -> str:

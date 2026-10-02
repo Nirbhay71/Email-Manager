@@ -45,6 +45,7 @@ const embedAndStore = promisify("EmbedAndStore");
 const classify = promisify("Classify");
 const addFeedback = promisify("AddFeedback");
 const getCategoryStatus = promisify("GetCategoryStatus");
+const deleteUserData = promisify("DeleteUserData");
 
 /**
  * Store a manually-labeled email (the user's first-ever label for it).
@@ -98,4 +99,12 @@ export async function recordFeedback(userEmail, email, predictedCategory, correc
  */
 export async function getStatus(userEmail) {
     return getCategoryStatus({ user_id: userEmail });
+}
+
+/**
+ * Drop every stored category example for this user (account deletion).
+ * @param {string} userEmail
+ */
+export async function deleteClassifierData(userEmail) {
+    return deleteUserData({ user_id: userEmail });
 }

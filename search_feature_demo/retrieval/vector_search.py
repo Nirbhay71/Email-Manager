@@ -134,3 +134,19 @@ def store_email_vector(
         metadatas=[{"user_email": user_email, "subject": subject}],
     )
     logger.info("Stored vector for email %s", message_id)
+
+
+def delete_user_vectors(user_email: str) -> int:
+    """
+    Delete every stored vector belonging to ``user_email``.
+
+    Returns:
+        Number of vectors removed.
+    """
+    collection = _get_collection()
+    existing = collection.get(where={"user_email": user_email}, include=[])
+    ids = existing.get("ids", []) if existing else []
+    if ids:
+        collection.delete(ids=ids)
+    logger.info("Deleted %d vectors for a user", len(ids))
+    return len(ids)

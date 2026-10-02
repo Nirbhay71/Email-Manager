@@ -21,25 +21,71 @@ export async function startWatch(tokens) {
     return res.data;
 }
 
+/**
+ * Message ids added to the inbox since `startHistoryId`, following every page.
+ * Also returns the mailbox's current historyId to resume from next time.
+ * Throws with err.code === 404 when startHistoryId is too old for Gmail to
+ * replay (roughly a week) — callers fall back to listRecentMessageIds.
+ */
 export async function getNewMessagesSince(tokens, startHistoryId){
     const gmail = gmailClient(tokens);
-    const historyRes = await gmail.users.history.list({
-        userId: "me",
-        startHistoryId,
-        historyTypes: ["messageAdded"]
-    });
-
-    const history = historyRes.data.history || [];
     const messageIds = new Set();
+    let pageToken;
+    let latestHistoryId = startHistoryId;
 
-    for(const record of history){
-        for(const added of record.messagesAdded || []){
-            messageIds.add(added.message.id);
+    do {
+        const historyRes = await gmail.users.history.list({
+            userId: "me",
+            startHistoryId,
+            historyTypes: ["messageAdded"],
+            labelId: "INBOX",
+            pageToken
+        });
+
+        for (const record of historyRes.data.history || []) {
+            for (const added of record.messagesAdded || []) {
+                messageIds.add(added.message.id);
+            }
         }
-    }
+        if (historyRes.data.historyId) latestHistoryId = historyRes.data.historyId;
+        pageToken = historyRes.data.nextPageToken;
+    } while (pageToken);
 
-    return Array.from(messageIds);
+    return { messageIds: Array.from(messageIds), historyId: latestHistoryId };
+}
 
+/**
+ * Ids of the most recent inbox messages, newest first — used to import a
+ * user's existing mail on first sign-in and to recover from a stale historyId.
+ */
+export async function listRecentMessageIds(tokens, { max = 200, newerThanDays = 30 } = {}) {
+    const gmail = gmailClient(tokens);
+    const ids = [];
+    let pageToken;
+
+    do {
+        const res = await gmail.users.messages.list({
+            userId: "me",
+            labelIds: ["INBOX"],
+            q: `newer_than:${newerThanDays}d`,
+            maxResults: Math.min(100, max - ids.length),
+            pageToken
+        });
+        for (const m of res.data.messages || []) ids.push(m.id);
+        pageToken = res.data.nextPageToken;
+    } while (pageToken && ids.length < max);
+
+    return ids;
+}
+
+export async function stopWatch(tokens) {
+    const gmail = gmailClient(tokens);
+    await gmail.users.stop({ userId: "me" });
+}
+
+/** True when Google says our stored refresh token is no longer usable. */
+export function isInvalidGrant(err) {
+    return err?.response?.data?.error === "invalid_grant" || /invalid_grant/.test(err?.message || "");
 }
 
 export async function getMessage(tokens, messageId) {

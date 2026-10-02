@@ -2,7 +2,19 @@ import crypto from "crypto";
 import { google } from "googleapis";
 import { getOAuthClient } from "../config/google.config.js";
 import { User } from "../models/user.model.js";
-import { startWatch } from "../service/gmail.service.js";
+import { Email } from "../models/email.model.js";
+import { Category } from "../models/category.model.js";
+import { ChatSession } from "../models/chatSession.model.js";
+import { startWatch, stopWatch } from "../service/gmail.service.js";
+import {
+    runExclusive,
+    backfillUser,
+    syncUserHistory,
+    cancelUserWork,
+    clearCancellation
+} from "../service/ingest.service.js";
+import { deleteUserVectors } from "../service/embeddingClient.js";
+import { deleteClassifierData } from "../grpc/classifierClient.js";
 import {
     signAccessToken,
     generateRefreshToken,
@@ -84,9 +96,15 @@ export const googleCallback = async (req, res) => {
             user.tokensPlain = tokens;
         }
 
-        // Start Gmail Pub/Sub watch
+        // Start (or refresh) the Gmail Pub/Sub watch. historyId is only adopted
+        // for brand-new users — an existing user's stored historyId is where the
+        // catch-up sync below resumes from, so mail that arrived while they were
+        // away isn't skipped.
         const watchResult = await startWatch(tokens);
-        user.historyId = watchResult.historyId;
+        const isFirstSync = !user.historyId;
+        if (isFirstSync) user.historyId = watchResult.historyId;
+        user.watchExpiration = new Date(Number(watchResult.expiration));
+        user.needsReauth = false;
 
         // ── Issue our own auth tokens ──────────────────────────────────────
         const accessToken = signAccessToken({ email, sub: user._id.toString() });
@@ -103,6 +121,15 @@ export const googleCallback = async (req, res) => {
         await user.save();
 
         console.log(`[auth] user logged in. historyId=${watchResult.historyId}`);
+
+        // Background: import existing inbox on first sign-in, otherwise catch
+        // up on anything missed. Not awaited — the redirect shouldn't wait.
+        clearCancellation(email);
+        const needsBackfill = user.backfillStatus !== "done";
+        runExclusive(email, async () => {
+            if (!isFirstSync) await syncUserHistory(email, watchResult.historyId);
+            if (needsBackfill) await backfillUser(email);
+        }).catch((err) => console.error("[auth] post-login sync failed:", err.message));
 
         // Set httpOnly cookies
         setAuthCookies(res, accessToken, refreshToken);
@@ -225,11 +252,82 @@ export const logoutAll = async (req, res) => {
 // req.user is already populated by requireAuth middleware (no extra DB hit needed for email)
 export const getMe = async (req, res) => {
     try {
-        const user = await User.findOne({ email: req.user.email }).select("email avtar");
+        const user = await User.findOne({ email: req.user.email }).select("email avtar needsReauth backfillStatus");
         if (!user) return res.status(404).json({ error: "User not found" });
-        res.json({ email: user.email, avatar: user.avtar });
+
+        // Accounts that existed before the inbox import shipped (or whose import
+        // was interrupted by a restart) are "pending" without a fresh login —
+        // start it here. The pending→running swap is atomic, so concurrent
+        // /auth/me calls can't start it twice.
+        if (user.backfillStatus === "pending" && !user.needsReauth) {
+            const claimed = await User.findOneAndUpdate(
+                { _id: user._id, backfillStatus: "pending" },
+                { $set: { backfillStatus: "running" } }
+            );
+            // Either we just claimed it, or a concurrent request already did.
+            user.backfillStatus = "running";
+            if (claimed) {
+                runExclusive(user.email, () => backfillUser(user.email))
+                    .catch((err) => console.error("[auth] backfill failed:", err.message));
+            }
+        }
+
+        res.json({
+            email: user.email,
+            avatar: user.avtar,
+            needsReauth: Boolean(user.needsReauth),
+            backfillStatus: user.backfillStatus
+        });
     } catch (error) {
         console.error("[auth] me error:", error);
         res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+// ─── Delete account — revoke Google access and erase all stored data ─────────
+export const deleteAccount = async (req, res) => {
+    const email = req.user.email;
+    // Stop any running backfill/sync from re-inserting mail mid-deletion.
+    cancelUserWork(email);
+
+    try {
+        await runExclusive(email, async () => {
+            const user = await User.findOne({ email });
+            if (!user) return;
+
+            const tokens = user.tokens ? user.tokensPlain : null;
+            if (tokens) {
+                // Best-effort: access may already be revoked on Google's side.
+                try { await stopWatch(tokens); } catch (err) {
+                    console.warn("[auth] delete: stopWatch failed:", err.message);
+                }
+                try {
+                    await getOAuthClient().revokeToken(tokens.refresh_token || tokens.access_token);
+                } catch (err) {
+                    console.warn("[auth] delete: token revoke failed:", err.message);
+                }
+            }
+
+            // Vector stores first: if either service is down, fail before
+            // deleting the Mongo records so the user can retry and nothing is
+            // left orphaned in a vector store with no account pointing at it.
+            await deleteUserVectors(email);
+            await deleteClassifierData(email);
+
+            await Promise.all([
+                Email.deleteMany({ userEmail: email }),
+                Category.deleteMany({ userEmail: email }),
+                ChatSession.deleteMany({ userEmail: email })
+            ]);
+            await User.deleteOne({ _id: user._id });
+        });
+
+        clearAuthCookies(res);
+        res.json({ ok: true });
+    } catch (error) {
+        console.error("[auth] delete account error:", error.message);
+        res.status(503).json({ error: "Could not delete all of your data right now. Please try again in a few minutes." });
+    } finally {
+        clearCancellation(email);
     }
 };

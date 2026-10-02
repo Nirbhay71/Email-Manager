@@ -5,7 +5,8 @@ import {
     refreshTokensHandler,
     logout,
     logoutAll,
-    getMe
+    getMe,
+    deleteAccount
 } from "../controllers/auth.controllers.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 
@@ -20,5 +21,6 @@ router.post("/refresh", refreshTokensHandler);  // uses refreshToken cookie
 router.get("/me", requireAuth, getMe);
 router.post("/logout", requireAuth, logout);
 router.post("/logout-all", requireAuth, logoutAll);
+router.delete("/account", requireAuth, deleteAccount);
 
 export default router;

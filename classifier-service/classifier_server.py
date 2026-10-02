@@ -25,7 +25,9 @@ def _ensure_generated():
     works without a manual `generate_classifier_proto.py` run.
     """
     pb2_path = os.path.join(_GENERATED_DIR, "classifier_pb2.py")
-    if os.path.exists(pb2_path):
+    proto_path = os.path.join(_SERVICE_DIR, "protos", "classifier.proto")
+    # Regenerate when the proto changed since the stubs were built.
+    if os.path.exists(pb2_path) and os.path.getmtime(pb2_path) >= os.path.getmtime(proto_path):
         return
 
     os.makedirs(_GENERATED_DIR, exist_ok=True)
@@ -63,6 +65,7 @@ from services.pipeline.confidence_scorer import ThresholdDifferenceConfidenceSco
 from services.pipeline.summary_generator import GeminiSummaryGenerator
 from services.pipeline.reasoning_engine import GeminiReasoningEngine
 from services.pipeline.orchestrator import ClassificationOrchestrator
+from services.classify_worker import ClassifyWorker
 
 # --- Tunables --------------------------------------------------------------
 MIN_EXAMPLES = int(os.getenv("MIN_EXAMPLES_PER_CATEGORY", "15"))
@@ -276,6 +279,16 @@ class EmailClassifierServicer(classifier_pb2_grpc.EmailClassifierServicer):
             context.set_details(str(e))
             return classifier_pb2.CategoryStatusResponse(categories=[])
 
+    def DeleteUserData(self, request, context):
+        try:
+            chroma_store.delete_user_collection(request.user_id)
+            return classifier_pb2.DeleteUserDataResponse(success=True)
+        except Exception as e:
+            logger.error(f"DeleteUserData error: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details("delete failed")
+            return classifier_pb2.DeleteUserDataResponse(success=False)
+
 
 def serve():
     server = grpc.server(
@@ -291,11 +304,17 @@ def serve():
     server.add_insecure_port(f"{GRPC_BIND_HOST}:{port}")
     server.start()
     logger.info(f"=== Classifier Python gRPC Server running on {GRPC_BIND_HOST}:{port} ===")
+
+    # Queue consumer for the backend's Redis classify jobs — batched and
+    # rate-limited so a burst of mail doesn't exhaust the Gemini quota.
+    worker = ClassifyWorker(orchestrator, embedder, chroma_store, MIN_EXAMPLES)
+    worker.start()
     try:
         while True:
             time.sleep(86400)
     except KeyboardInterrupt:
         logger.info("Shutting down gRPC server...")
+        worker.stop()
         server.stop(grace=5)
 
 

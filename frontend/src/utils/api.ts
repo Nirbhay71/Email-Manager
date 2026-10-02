@@ -7,6 +7,8 @@
 
 const BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+export const GOOGLE_REAUTH_EVENT = 'mailsense:google-reauth-required';
+
 let isRefreshing = false;
 let refreshQueue: Array<{ resolve: () => void; reject: (err: unknown) => void }> = [];
 
@@ -49,6 +51,13 @@ export async function apiFetch(
     if (res.status === 401) {
         let body: { code?: string } | null = null;
         try { body = await res.clone().json(); } catch { /* no body */ }
+
+        // Our session is fine but Google revoked/expired its grant — let the
+        // app show a "reconnect Google" prompt instead of failing silently.
+        if (body?.code === 'GOOGLE_REAUTH_REQUIRED') {
+            window.dispatchEvent(new Event(GOOGLE_REAUTH_EVENT));
+            return res;
+        }
 
         if (body?.code === 'ACCESS_EXPIRED') {
             if (isRefreshing) {

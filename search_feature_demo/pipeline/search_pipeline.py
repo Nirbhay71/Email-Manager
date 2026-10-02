@@ -67,6 +67,7 @@ class SearchPipeline:
         limit: int = 20,
         offset: int = 0,
         request_id: str | None = None,
+        on_stage=None,
     ) -> SearchResponse:
         """
         Execute the full search pipeline.
@@ -77,6 +78,9 @@ class SearchPipeline:
             limit: Maximum results to return.
             offset: Pagination offset.
             request_id: Optional request ID for log correlation.
+            on_stage: Optional callback(stage_name) fired as the pipeline
+                moves between stages ("routing", "searching", "ranking"),
+                used to stream progress to the chat UI.
 
         Returns:
             A :class:`SearchResponse` with ranked results, interpretation,
@@ -101,6 +105,8 @@ class SearchPipeline:
             return cached
 
         # ── Stage 1: Query Routing ──────────────────────────────────────
+        if on_stage:
+            on_stage("routing")
         t0 = time.perf_counter()
         query = route_query(raw_query, user_email, limit=limit, offset=offset)
         timings.routing_ms = (time.perf_counter() - t0) * 1000
@@ -113,6 +119,8 @@ class SearchPipeline:
         )
 
         # ── Stage 2: Parallel Retrieval ─────────────────────────────────
+        if on_stage:
+            on_stage("searching")
         metadata_results: list[dict] = []
         bm25_results: list[dict[str, Any]] = []
         vector_results: list[dict[str, Any]] = []
@@ -236,7 +244,9 @@ class SearchPipeline:
 
         # ── Stage 5: Reranking ──────────────────────────────────────────
         t0 = time.perf_counter()
-        if fused and query.free_text.strip():
+        if fused and query.free_text.strip() and cfg.rerank_enabled():
+            if on_stage:
+                on_stage("ranking")
             try:
                 fused = rerank(query.free_text, fused)
             except Exception as exc:
@@ -247,7 +257,7 @@ class SearchPipeline:
                     item.setdefault("final_score", item.get("rrf_score", 0.0))
                     item.setdefault("matched_snippet", "")
         else:
-            # No free text — skip reranking, use RRF scores as final
+            # No free text, or reranking disabled (CPU) — use RRF scores as final
             for item in fused:
                 item.setdefault("rerank_score", 0.0)
                 item.setdefault("final_score", item.get("rrf_score", 0.0))

@@ -26,6 +26,12 @@ const emailSchema = new mongoose.Schema({
         type: String,
         default: ""
     },
+    // Gmail's own receipt time (internalDate). Falls back to createdAt for
+    // emails stored before this field existed.
+    receivedAt: {
+        type: Date,
+        default: null
+    },
     detectedDate: {
         type: String,
         default: null
@@ -57,5 +63,6 @@ const emailSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 emailSchema.index({ subject: "text", body: "text" });
+emailSchema.index({ userEmail: 1, receivedAt: -1 });
 
 export const Email = mongoose.model('email', emailSchema);

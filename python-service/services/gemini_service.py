@@ -9,6 +9,10 @@ load_dotenv()
 
 logger = logging.getLogger("GeminiService")
 
+# Google retires Gemini model versions periodically — override via env
+# rather than editing code when the default stops being served.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+
 MAX_KEYS = 4
 
 
@@ -113,7 +117,7 @@ Answer:"""
         yielded_any = False
         try:
             response = client.models.generate_content_stream(
-                model="gemini-2.5-flash",
+                model=GEMINI_MODEL,
                 contents=prompt
             )
             for chunk in response:
@@ -137,7 +141,7 @@ Answer:"""
                 continue  # try the next candidate key for this same request
 
             logger.error(f"Gemini streaming error on key #{key_index + 1}: {e}")
-            yield f"\n[Error generating answer: {str(e)}]"
+            yield "\nSorry, the AI assistant could not generate an answer right now. Please try again shortly."
             return
 
     logger.error("All configured Gemini API keys have reached their quota.")

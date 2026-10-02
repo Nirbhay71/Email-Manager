@@ -21,6 +21,74 @@ interface Message {
   content: string;
   timestamp: Date;
   streaming?: boolean;
+  /** Latest progress event from the server while no answer text has arrived yet. */
+  stage?: string;
+  /** Per-stage milliseconds reported by the search service (final chunk). */
+  timings?: Record<string, number>;
+  model?: string;
+  /** Wall-clock time from send to last chunk, measured in the browser. */
+  clientMs?: number;
+}
+
+// ── Progress indicator ────────────────────────────────────────────────────────
+
+const STAGE_LABELS: Record<string, string> = {
+  connecting: "Connecting",
+  routing: "Understanding your question",
+  searching: "Searching your emails",
+  ranking: "Ranking the best matches",
+  reading: "Reading relevant emails",
+};
+// While Gemini works there's no further signal, so rotate phrases to show it's alive.
+const GENERATING_PHRASES = ["Thinking", "Connecting the dots", "Checking dates and details", "Drafting the answer"];
+
+function stageLabel(stage: string, tick: number): string {
+  if (stage === "generating") return GENERATING_PHRASES[Math.floor(tick / 3) % GENERATING_PHRASES.length];
+  if (stage.startsWith("reading:")) {
+    const n = Number(stage.split(":")[1]);
+    return n ? `Reading ${n} relevant email${n === 1 ? "" : "s"}` : "Looking for relevant emails";
+  }
+  return STAGE_LABELS[stage] ?? "Working";
+}
+
+function ProgressIndicator({ stage, startedAt }: { stage: string; startedAt: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const elapsed = Math.max(0, Math.floor((now - startedAt) / 1000));
+  return (
+    <span className="flex items-center gap-[10px] text-[#6b7280] text-[14px]" role="status" aria-live="polite">
+      <span className="flex gap-[3px]" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="w-[6px] h-[6px] rounded-full bg-[#9ca3af] animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+        ))}
+      </span>
+      <span className="animate-pulse">{stageLabel(stage, elapsed)}…</span>
+      {elapsed > 0 && <span className="text-[11px] text-[#9ca3af] tabular-nums">{elapsed}s</span>}
+    </span>
+  );
+}
+
+/** Dev-only timing breakdown under an answer. */
+function TimingReport({ msg }: { msg: Message }) {
+  const t = msg.timings ?? {};
+  const s = (ms?: number) => (ms === undefined ? "–" : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`);
+  const parts = [
+    `total ${s(msg.clientMs ?? t.total_ms)}`,
+    `search ${s(t.search_ms)}`,
+    t.rerank_ms && t.rerank_ms > 1 ? `rerank ${s(t.rerank_ms)}` : "rerank skipped",
+    `context ${s(t.context_ms)}`,
+    `LLM first word ${s(t.llm_first_token_ms)} / done ${s(t.llm_total_ms)}`,
+  ];
+  if (t.llm_attempts && t.llm_attempts > 1) parts.push(`${t.llm_attempts} model attempts`);
+  if (msg.model) parts.push(msg.model);
+  return (
+    <p className="font-mono text-[10px] text-[#9ca3af] mt-[6px] leading-[14px]" title="Shown in development builds only">
+      ⏱ {parts.join(" · ")}
+    </p>
+  );
 }
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
@@ -153,7 +221,8 @@ function ChatWorkspace({ userEmail, messages, setMessages, isStreaming, setIsStr
 
     // Append empty streaming AI message
     const aiId = `ai-${Date.now()}`;
-    setMessages(prev => [...prev, { id: aiId, role: "ai", content: "", timestamp: new Date(), streaming: true }]);
+    const sentAt = Date.now();
+    setMessages(prev => [...prev, { id: aiId, role: "ai", content: "", timestamp: new Date(sentAt), streaming: true, stage: "connecting" }]);
 
     try {
       // No userEmail in body — backend reads it from the JWT cookie
@@ -179,16 +248,25 @@ function ChatWorkspace({ userEmail, messages, setMessages, isStreaming, setIsStr
           if (!line.startsWith("data: ")) continue;
           const jsonStr = line.slice(6).trim();
           if (!jsonStr) continue;
-          try {
-            const chunk = JSON.parse(jsonStr);
-            if (chunk.text_delta) {
-              setMessages(prev =>
-                prev.map(m =>
-                  m.id === aiId ? { ...m, content: m.content + chunk.text_delta } : m
-                )
-              );
-            }
-          } catch { /* ignore parse errors */ }
+          let chunk: { text_delta?: string; error?: string; stage?: string; is_final?: boolean; timings?: Record<string, number>; model?: string };
+          try { chunk = JSON.parse(jsonStr); } catch { continue; /* ignore malformed frames */ }
+          // The backend sends { error } when the AI service fails mid-request.
+          if (chunk.error) throw new Error(chunk.error);
+          if (chunk.stage) {
+            const stage = chunk.stage;
+            setMessages(prev => prev.map(m => m.id === aiId ? { ...m, stage } : m));
+          }
+          if (chunk.is_final) {
+            const { timings, model } = chunk;
+            setMessages(prev => prev.map(m => m.id === aiId ? { ...m, timings, model: model || undefined } : m));
+          }
+          if (chunk.text_delta) {
+            setMessages(prev =>
+              prev.map(m =>
+                m.id === aiId ? { ...m, content: m.content + chunk.text_delta } : m
+              )
+            );
+          }
         }
       }
     } catch (err: unknown) {
@@ -197,8 +275,10 @@ function ChatWorkspace({ userEmail, messages, setMessages, isStreaming, setIsStr
         prev.map(m => m.id === aiId ? { ...m, content: `Error: ${msg}` } : m)
       );
     } finally {
-      // Mark streaming done
-      setMessages(prev => prev.map(m => m.id === aiId ? { ...m, streaming: false } : m));
+      // Mark streaming done — never leave an empty bubble behind
+      setMessages(prev => prev.map(m => m.id === aiId
+        ? { ...m, streaming: false, stage: undefined, clientMs: Date.now() - sentAt, content: m.content.trim() ? m.content : "No answer came back from the AI service. Please try again." }
+        : m));
       setIsStreaming(false);
       onSessionsChanged();
     }
@@ -256,17 +336,22 @@ function ChatWorkspace({ userEmail, messages, setMessages, isStreaming, setIsStr
                   <AssistantIcon size={18} />
                 </div>
                 <div className="bg-[#f9fafb] border border-[#f3f4f6] rounded-bl-[32px] rounded-br-[32px] rounded-tr-[32px] px-[25px] pt-[20px] pb-[20px] max-w-[600px]">
-                  <p className="font-['Inter:Regular',sans-serif] font-normal text-[#374151] text-[14px] leading-[22px] whitespace-pre-wrap">
-                    {msg.content}
-                    {msg.streaming && (
-                      <span className="inline-block w-[2px] h-[14px] bg-[#374151] ml-[2px] align-middle animate-pulse" />
-                    )}
-                  </p>
+                  {msg.streaming && !msg.content ? (
+                    <ProgressIndicator stage={msg.stage ?? "connecting"} startedAt={msg.timestamp.getTime()} />
+                  ) : (
+                    <p className="font-['Inter:Regular',sans-serif] font-normal text-[#374151] text-[14px] leading-[22px] whitespace-pre-wrap">
+                      {msg.content}
+                      {msg.streaming && (
+                        <span className="inline-block w-[2px] h-[14px] bg-[#374151] ml-[2px] align-middle animate-pulse" />
+                      )}
+                    </p>
+                  )}
                   {!msg.streaming && (
                     <p className="font-['Inter:Bold',sans-serif] font-bold text-[#9ca3af] text-[10px] uppercase leading-[15px] mt-[12px]">
                       {fmtTime(msg.timestamp)}
                     </p>
                   )}
+                  {import.meta.env.DEV && !msg.streaming && msg.clientMs !== undefined && <TimingReport msg={msg} />}
                 </div>
               </div>
             ) : (

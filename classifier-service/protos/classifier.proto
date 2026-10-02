@@ -22,6 +22,9 @@ service EmailClassifier {
   // enabled yet for each category. Node uses this to drive the
   // "X more emails until auto-categorization kicks in" UI.
   rpc GetCategoryStatus (CategoryStatusRequest) returns (CategoryStatusResponse);
+
+  // Drop this user's entire vector store (account deletion).
+  rpc DeleteUserData (DeleteUserDataRequest) returns (DeleteUserDataResponse);
 }
 
 // ---------------------------------------------------------------------------
@@ -106,4 +109,12 @@ message CategoryStatus {
 
 message CategoryStatusResponse {
   repeated CategoryStatus categories = 1;
+}
+
+message DeleteUserDataRequest {
+  string user_id = 1;
+}
+
+message DeleteUserDataResponse {
+  bool success = 1;
 }

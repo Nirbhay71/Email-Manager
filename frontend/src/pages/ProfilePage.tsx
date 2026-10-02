@@ -14,6 +14,9 @@ export default function ProfilePage() {
   const user = getStoredUser();
   const [stats, setStats] = useState<Stats>({ emails: null, chats: null });
   const [loggingOut, setLoggingOut] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -38,6 +41,24 @@ export default function ProfilePage() {
     try { await apiFetch("/auth/logout", { method: "POST" }); } catch { /* clear locally regardless */ }
     try { window.localStorage.removeItem("user"); } catch { /* ignore */ }
     window.location.href = "/";
+  };
+
+  const deleteAccount = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const res = await apiFetch("/auth/account", { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Could not delete your account. Please try again.");
+      }
+      try { window.localStorage.removeItem("user"); } catch { /* ignore */ }
+      window.location.href = "/";
+    } catch (e) {
+      setDeleteError((e as Error).message);
+      setDeleting(false);
+    }
   };
 
   const displayName = user.name || (user.email ? user.email.split("@")[0] : "Your account");
@@ -112,6 +133,45 @@ export default function ProfilePage() {
                     </li>
                   ))}
                 </ul>
+              </div>
+
+              {/* Account deletion */}
+              <div className="bg-white rounded-[40px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] p-[32px]">
+                <h2 className="font-['Inter:Bold',sans-serif] font-bold text-[20px] text-black leading-[28px] mb-[8px]">Delete account</h2>
+                <p className="font-['Inter:Regular',sans-serif] text-[14px] text-[#6b7280] mb-[20px]">
+                  Revokes MailSense's Google access and permanently deletes your stored emails, search index, categories and AI chats.
+                  Events you added stay in Google Calendar. See the <a className="underline" href="/privacy">Privacy Policy</a>.
+                </p>
+                {!confirmingDelete ? (
+                  <button
+                    onClick={() => setConfirmingDelete(true)}
+                    className="border border-[#fecaca] text-[#b91c1c] rounded-full px-[20px] py-[10px] font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] hover:bg-[#fef2f2] transition"
+                    type="button"
+                  >
+                    Delete my account…
+                  </button>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-[12px]">
+                    <span className="text-[14px] text-[#b91c1c] font-semibold">This can't be undone.</span>
+                    <button
+                      onClick={deleteAccount}
+                      disabled={deleting}
+                      className="bg-[#b91c1c] text-white rounded-full px-[20px] py-[10px] font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] hover:opacity-90 disabled:opacity-50 transition"
+                      type="button"
+                    >
+                      {deleting ? "Deleting…" : "Delete permanently"}
+                    </button>
+                    <button
+                      onClick={() => { setConfirmingDelete(false); setDeleteError(""); }}
+                      disabled={deleting}
+                      className="text-[14px] text-[#6b7280] hover:text-black disabled:opacity-50"
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                {deleteError && <p role="alert" className="mt-[12px] text-[13px] text-[#b91c1c]">{deleteError}</p>}
               </div>
             </div>
           </div>
