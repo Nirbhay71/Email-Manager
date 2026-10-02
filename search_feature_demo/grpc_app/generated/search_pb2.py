@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0csearch.proto\x12\x0e\x65mailsearch_v2\"Q\n\rSearchRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x12\n\nuser_email\x18\x02 \x01(\t\x12\r\n\x05limit\x18\x03 \x01(\x05\x12\x0e\n\x06offset\x18\x04 \x01(\x05\"U\n\x0c\x45mbedRequest\x12\x12\n\nmessage_id\x18\x01 \x01(\t\x12\x12\n\nuser_email\x18\x02 \x01(\t\x12\x0f\n\x07subject\x18\x03 \x01(\t\x12\x0c\n\x04\x62ody\x18\x04 \x01(\t\"+\n\x15\x44\x65leteUserDataRequest\x12\x12\n\nuser_email\x18\x01 \x01(\t\"A\n\nAskRequest\x12\x12\n\nuser_email\x18\x01 \x01(\t\x12\x10\n\x08question\x18\x02 \x01(\t\x12\r\n\x05top_k\x18\x03 \x01(\x05\"\xec\x01\n\x0eSearchResponse\x12-\n\x07results\x18\x01 \x03(\x0b\x32\x1c.emailsearch_v2.SearchResult\x12\r\n\x05total\x18\x02 \x01(\x05\x12\x41\n\x14query_interpretation\x18\x03 \x01(\x0b\x32#.emailsearch_v2.QueryInterpretation\x12-\n\x07timings\x18\x04 \x01(\x0b\x32\x1c.emailsearch_v2.StageTimings\x12\x10\n\x08\x64\x65graded\x18\x05 \x01(\x08\x12\x18\n\x10stages_timed_out\x18\x06 \x03(\t\"\x90\x01\n\x0cSearchResult\x12\x10\n\x08\x65mail_id\x18\x01 \x01(\t\x12\x0f\n\x07subject\x18\x02 \x01(\t\x12\x0e\n\x06sender\x18\x03 \x01(\t\x12\x0c\n\x04\x64\x61te\x18\x04 \x01(\t\x12\x0f\n\x07snippet\x18\x05 \x01(\t\x12.\n\x06scores\x18\x06 \x01(\x0b\x32\x1e.emailsearch_v2.ScoreBreakdown\"M\n\x0eScoreBreakdown\x12\x0c\n\x04\x62m25\x18\x01 \x01(\x02\x12\x0e\n\x06vector\x18\x02 \x01(\x02\x12\x0e\n\x06rerank\x18\x03 \x01(\x02\x12\r\n\x05\x66inal\x18\x04 \x01(\x02\"\xba\x01\n\x13QueryInterpretation\x12\x45\n\toperators\x18\x01 \x03(\x0b\x32\x32.emailsearch_v2.QueryInterpretation.OperatorsEntry\x12\x11\n\tfree_text\x18\x02 \x01(\t\x12\x17\n\x0f\x64\x65tected_sender\x18\x03 \x01(\t\x1a\x30\n\x0eOperatorsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x93\x01\n\x0cStageTimings\x12\x10\n\x08total_ms\x18\x01 \x01(\x02\x12\x12\n\nrouting_ms\x18\x02 \x01(\x02\x12\x13\n\x0bmetadata_ms\x18\x03 \x01(\x02\x12\x0f\n\x07\x62m25_ms\x18\x04 \x01(\x02\x12\x11\n\tvector_ms\x18\x05 \x01(\x02\x12\x11\n\tfusion_ms\x18\x06 \x01(\x02\x12\x11\n\trerank_ms\x18\x07 \x01(\x02\"/\n\rEmbedResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\"\xf4\x01\n\x10\x41skResponseChunk\x12\x12\n\ntext_delta\x18\x01 \x01(\t\x12\x10\n\x08is_final\x18\x02 \x01(\x08\x12,\n\x07sources\x18\x03 \x03(\x0b\x32\x1b.emailsearch_v2.SourceEmail\x12\r\n\x05stage\x18\x04 \x01(\t\x12>\n\x07timings\x18\x05 \x03(\x0b\x32-.emailsearch_v2.AskResponseChunk.TimingsEntry\x12\r\n\x05model\x18\x06 \x01(\t\x1a.\n\x0cTimingsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\"A\n\x0bSourceEmail\x12\x12\n\nmessage_id\x18\x01 \x01(\t\x12\x0f\n\x07subject\x18\x02 \x01(\t\x12\r\n\x05score\x18\x03 \x01(\x02\"I\n\x16\x44\x65leteUserDataResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07\x64\x65leted\x18\x02 \x01(\x05\x12\r\n\x05\x65rror\x18\x03 \x01(\t2\xd6\x02\n\rSearchService\x12G\n\x06Search\x12\x1d.emailsearch_v2.SearchRequest\x1a\x1e.emailsearch_v2.SearchResponse\x12L\n\rEmbedAndStore\x12\x1c.emailsearch_v2.EmbedRequest\x1a\x1d.emailsearch_v2.EmbedResponse\x12M\n\x0b\x41skQuestion\x12\x1a.emailsearch_v2.AskRequest\x1a .emailsearch_v2.AskResponseChunk0\x01\x12_\n\x0e\x44\x65leteUserData\x12%.emailsearch_v2.DeleteUserDataRequest\x1a&.emailsearch_v2.DeleteUserDataResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0csearch.proto\x12\x0e\x65mailsearch_v2\"Q\n\rSearchRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x12\n\nuser_email\x18\x02 \x01(\t\x12\r\n\x05limit\x18\x03 \x01(\x05\x12\x0e\n\x06offset\x18\x04 \x01(\x05\"U\n\x0c\x45mbedRequest\x12\x12\n\nmessage_id\x18\x01 \x01(\t\x12\x12\n\nuser_email\x18\x02 \x01(\t\x12\x0f\n\x07subject\x18\x03 \x01(\t\x12\x0c\n\x04\x62ody\x18\x04 \x01(\t\"+\n\x15\x44\x65leteUserDataRequest\x12\x12\n\nuser_email\x18\x01 \x01(\t\"\x84\x01\n\nAskRequest\x12\x12\n\nuser_email\x18\x01 \x01(\t\x12\x10\n\x08question\x18\x02 \x01(\t\x12\r\n\x05top_k\x18\x03 \x01(\x05\x12)\n\x07history\x18\x04 \x03(\x0b\x32\x18.emailsearch_v2.ChatTurn\x12\x16\n\x0e\x63\x61rry_over_ids\x18\x05 \x03(\t\")\n\x08\x43hatTurn\x12\x0c\n\x04role\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\t\"\xec\x01\n\x0eSearchResponse\x12-\n\x07results\x18\x01 \x03(\x0b\x32\x1c.emailsearch_v2.SearchResult\x12\r\n\x05total\x18\x02 \x01(\x05\x12\x41\n\x14query_interpretation\x18\x03 \x01(\x0b\x32#.emailsearch_v2.QueryInterpretation\x12-\n\x07timings\x18\x04 \x01(\x0b\x32\x1c.emailsearch_v2.StageTimings\x12\x10\n\x08\x64\x65graded\x18\x05 \x01(\x08\x12\x18\n\x10stages_timed_out\x18\x06 \x03(\t\"\x90\x01\n\x0cSearchResult\x12\x10\n\x08\x65mail_id\x18\x01 \x01(\t\x12\x0f\n\x07subject\x18\x02 \x01(\t\x12\x0e\n\x06sender\x18\x03 \x01(\t\x12\x0c\n\x04\x64\x61te\x18\x04 \x01(\t\x12\x0f\n\x07snippet\x18\x05 \x01(\t\x12.\n\x06scores\x18\x06 \x01(\x0b\x32\x1e.emailsearch_v2.ScoreBreakdown\"M\n\x0eScoreBreakdown\x12\x0c\n\x04\x62m25\x18\x01 \x01(\x02\x12\x0e\n\x06vector\x18\x02 \x01(\x02\x12\x0e\n\x06rerank\x18\x03 \x01(\x02\x12\r\n\x05\x66inal\x18\x04 \x01(\x02\"\xba\x01\n\x13QueryInterpretation\x12\x45\n\toperators\x18\x01 \x03(\x0b\x32\x32.emailsearch_v2.QueryInterpretation.OperatorsEntry\x12\x11\n\tfree_text\x18\x02 \x01(\t\x12\x17\n\x0f\x64\x65tected_sender\x18\x03 \x01(\t\x1a\x30\n\x0eOperatorsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x93\x01\n\x0cStageTimings\x12\x10\n\x08total_ms\x18\x01 \x01(\x02\x12\x12\n\nrouting_ms\x18\x02 \x01(\x02\x12\x13\n\x0bmetadata_ms\x18\x03 \x01(\x02\x12\x0f\n\x07\x62m25_ms\x18\x04 \x01(\x02\x12\x11\n\tvector_ms\x18\x05 \x01(\x02\x12\x11\n\tfusion_ms\x18\x06 \x01(\x02\x12\x11\n\trerank_ms\x18\x07 \x01(\x02\"/\n\rEmbedResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\"\xf4\x01\n\x10\x41skResponseChunk\x12\x12\n\ntext_delta\x18\x01 \x01(\t\x12\x10\n\x08is_final\x18\x02 \x01(\x08\x12,\n\x07sources\x18\x03 \x03(\x0b\x32\x1b.emailsearch_v2.SourceEmail\x12\r\n\x05stage\x18\x04 \x01(\t\x12>\n\x07timings\x18\x05 \x03(\x0b\x32-.emailsearch_v2.AskResponseChunk.TimingsEntry\x12\r\n\x05model\x18\x06 \x01(\t\x1a.\n\x0cTimingsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\"A\n\x0bSourceEmail\x12\x12\n\nmessage_id\x18\x01 \x01(\t\x12\x0f\n\x07subject\x18\x02 \x01(\t\x12\r\n\x05score\x18\x03 \x01(\x02\"I\n\x16\x44\x65leteUserDataResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07\x64\x65leted\x18\x02 \x01(\x05\x12\r\n\x05\x65rror\x18\x03 \x01(\t2\xd6\x02\n\rSearchService\x12G\n\x06Search\x12\x1d.emailsearch_v2.SearchRequest\x1a\x1e.emailsearch_v2.SearchResponse\x12L\n\rEmbedAndStore\x12\x1c.emailsearch_v2.EmbedRequest\x1a\x1d.emailsearch_v2.EmbedResponse\x12M\n\x0b\x41skQuestion\x12\x1a.emailsearch_v2.AskRequest\x1a .emailsearch_v2.AskResponseChunk0\x01\x12_\n\x0e\x44\x65leteUserData\x12%.emailsearch_v2.DeleteUserDataRequest\x1a&.emailsearch_v2.DeleteUserDataResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -41,30 +41,32 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_EMBEDREQUEST']._serialized_end=200
   _globals['_DELETEUSERDATAREQUEST']._serialized_start=202
   _globals['_DELETEUSERDATAREQUEST']._serialized_end=245
-  _globals['_ASKREQUEST']._serialized_start=247
-  _globals['_ASKREQUEST']._serialized_end=312
-  _globals['_SEARCHRESPONSE']._serialized_start=315
-  _globals['_SEARCHRESPONSE']._serialized_end=551
-  _globals['_SEARCHRESULT']._serialized_start=554
-  _globals['_SEARCHRESULT']._serialized_end=698
-  _globals['_SCOREBREAKDOWN']._serialized_start=700
-  _globals['_SCOREBREAKDOWN']._serialized_end=777
-  _globals['_QUERYINTERPRETATION']._serialized_start=780
-  _globals['_QUERYINTERPRETATION']._serialized_end=966
-  _globals['_QUERYINTERPRETATION_OPERATORSENTRY']._serialized_start=918
-  _globals['_QUERYINTERPRETATION_OPERATORSENTRY']._serialized_end=966
-  _globals['_STAGETIMINGS']._serialized_start=969
-  _globals['_STAGETIMINGS']._serialized_end=1116
-  _globals['_EMBEDRESPONSE']._serialized_start=1118
-  _globals['_EMBEDRESPONSE']._serialized_end=1165
-  _globals['_ASKRESPONSECHUNK']._serialized_start=1168
-  _globals['_ASKRESPONSECHUNK']._serialized_end=1412
-  _globals['_ASKRESPONSECHUNK_TIMINGSENTRY']._serialized_start=1366
-  _globals['_ASKRESPONSECHUNK_TIMINGSENTRY']._serialized_end=1412
-  _globals['_SOURCEEMAIL']._serialized_start=1414
-  _globals['_SOURCEEMAIL']._serialized_end=1479
-  _globals['_DELETEUSERDATARESPONSE']._serialized_start=1481
-  _globals['_DELETEUSERDATARESPONSE']._serialized_end=1554
-  _globals['_SEARCHSERVICE']._serialized_start=1557
-  _globals['_SEARCHSERVICE']._serialized_end=1899
+  _globals['_ASKREQUEST']._serialized_start=248
+  _globals['_ASKREQUEST']._serialized_end=380
+  _globals['_CHATTURN']._serialized_start=382
+  _globals['_CHATTURN']._serialized_end=423
+  _globals['_SEARCHRESPONSE']._serialized_start=426
+  _globals['_SEARCHRESPONSE']._serialized_end=662
+  _globals['_SEARCHRESULT']._serialized_start=665
+  _globals['_SEARCHRESULT']._serialized_end=809
+  _globals['_SCOREBREAKDOWN']._serialized_start=811
+  _globals['_SCOREBREAKDOWN']._serialized_end=888
+  _globals['_QUERYINTERPRETATION']._serialized_start=891
+  _globals['_QUERYINTERPRETATION']._serialized_end=1077
+  _globals['_QUERYINTERPRETATION_OPERATORSENTRY']._serialized_start=1029
+  _globals['_QUERYINTERPRETATION_OPERATORSENTRY']._serialized_end=1077
+  _globals['_STAGETIMINGS']._serialized_start=1080
+  _globals['_STAGETIMINGS']._serialized_end=1227
+  _globals['_EMBEDRESPONSE']._serialized_start=1229
+  _globals['_EMBEDRESPONSE']._serialized_end=1276
+  _globals['_ASKRESPONSECHUNK']._serialized_start=1279
+  _globals['_ASKRESPONSECHUNK']._serialized_end=1523
+  _globals['_ASKRESPONSECHUNK_TIMINGSENTRY']._serialized_start=1477
+  _globals['_ASKRESPONSECHUNK_TIMINGSENTRY']._serialized_end=1523
+  _globals['_SOURCEEMAIL']._serialized_start=1525
+  _globals['_SOURCEEMAIL']._serialized_end=1590
+  _globals['_DELETEUSERDATARESPONSE']._serialized_start=1592
+  _globals['_DELETEUSERDATARESPONSE']._serialized_end=1665
+  _globals['_SEARCHSERVICE']._serialized_start=1668
+  _globals['_SEARCHSERVICE']._serialized_end=2010
 # @@protoc_insertion_point(module_scope)

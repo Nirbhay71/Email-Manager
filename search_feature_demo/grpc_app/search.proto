@@ -42,6 +42,13 @@ message AskRequest {
   string user_email = 1;
   string question = 2;
   int32 top_k = 3; // Number of top emails to retrieve (default: 5)
+  repeated ChatTurn history = 4; // Earlier turns of this chat, oldest first (loaded server-side by the backend)
+  repeated string carry_over_ids = 5; // Emails the previous answer was based on, for follow-ups ("tell me more about it")
+}
+
+message ChatTurn {
+  string role = 1; // "user" or "ai"
+  string content = 2;
 }
 
 // ── Response ───────────────────────────────────────────────────────────────

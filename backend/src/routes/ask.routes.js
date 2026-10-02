@@ -1,10 +1,34 @@
 import express from "express";
 import { hybridSearchClient, buildServiceMetadata } from "../grpc/hybridSearchClient.js";
+import mongoose from "mongoose";
 import { ChatSession } from "../models/chatSession.model.js";
 
 const router = express.Router();
 
 const MAX_QUESTION_LENGTH = 2000;
+// How much of the chat is sent with each question (the Python side trims further).
+const HISTORY_MESSAGES = 8;
+// Replies that are app/service errors, not answers — useless as conversation context.
+const NON_ANSWER = /^(Sorry, the AI assistant|The AI service is very busy|Out of tokens|No answer came back|\[Response interrupted)/;
+
+/**
+ * Recent turns of this chat plus the emails the last answer was based on,
+ * loaded from the database (never trusted from the client) and scoped to the
+ * signed-in user, so follow-ups like "tell me more about the second one" work.
+ */
+async function loadConversation(sessionId, userEmail) {
+    if (!sessionId || !mongoose.isValidObjectId(sessionId)) return { history: [], carryOverIds: [] };
+    const session = await ChatSession.findOne(
+        { _id: sessionId, userEmail },
+        { messages: { $slice: -HISTORY_MESSAGES } }
+    ).lean();
+    const messages = (session?.messages || []).filter((m) => m.content && !NON_ANSWER.test(m.content.trim()));
+    const lastAi = [...messages].reverse().find((m) => m.role === "ai");
+    return {
+        history: messages.map((m) => ({ role: m.role, content: m.content })),
+        carryOverIds: (lastAi?.metadata?.sources || []).map((s) => s.message_id).filter(Boolean).slice(0, 5)
+    };
+}
 
 /**
  * POST /ask
@@ -36,11 +60,20 @@ router.post("/", async (req, res) => {
         }
     }, 1000);
 
+    let conversation = { history: [], carryOverIds: [] };
+    try {
+        conversation = await loadConversation(sessionId, userEmail);
+    } catch (err) {
+        console.warn("[/ask] could not load chat history:", err.message); // answer without it
+    }
+
     // Initiate gRPC streaming call to Python service
     const call = hybridSearchClient.AskQuestion({
         user_email: userEmail,
         question: question,
-        top_k: 5
+        top_k: 5,
+        history: conversation.history,
+        carry_over_ids: conversation.carryOverIds
     }, buildServiceMetadata());
 
     let fullAiResponse = "";

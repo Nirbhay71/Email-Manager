@@ -68,6 +68,21 @@ import search_pb2
 import search_pb2_grpc
 
 
+# Emails from the previous answer kept in context for follow-up questions.
+MAX_CARRY_OVER = 5
+
+# Short questions, or ones that point back at earlier answers.
+_FOLLOW_UP = re.compile(
+    r"\b(it|its|that|this|those|these|them|they|he|she|him|her|one|ones|first|second|third|last|above|"
+    r"previous|earlier|more|else|also|again|same|other)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_follow_up(question: str) -> bool:
+    return len(question.split()) <= 6 or bool(_FOLLOW_UP.search(question))
+
+
 # Emails loaded when a question names a category (newest first).
 MAX_CATEGORY_CONTEXT = int(os.getenv("CHAT_MAX_CATEGORY_EMAILS", "10"))
 
@@ -203,8 +218,18 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
         user_email = request.user_email
         question = request.question
         top_k = request.top_k or 5
+        history = [{"role": t.role, "content": t.content} for t in request.history]
+        carry_over_ids = list(request.carry_over_ids)
+        # Follow-ups ("tell me more about the second one") mean little on their
+        # own, so retrieval also uses the previous question. Done without an
+        # extra LLM call to keep latency and quota down.
+        previous_question = next((t["content"] for t in reversed(history) if t["role"] == "user"), "")
+        search_query = question
+        if previous_question and _is_follow_up(question):
+            search_query = f"{previous_question} {question}"
         try:
-            logger.info("AskQuestion received (top_k=%d)", top_k)
+            logger.info("AskQuestion received (top_k=%d, history=%d turns, follow_up=%s)",
+                        top_k, len(history), search_query != question)
 
             # 1. Run the hybrid search in a worker thread so its stage
             #    callbacks can be streamed to the client as they happen.
@@ -214,7 +239,7 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
             def run_search():
                 try:
                     outcome["response"] = self._pipeline.search(
-                        raw_query=question,
+                        raw_query=search_query,
                         user_email=user_email,
                         limit=top_k,
                         offset=0,
@@ -270,7 +295,7 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
             ]
             mentioned = [
                 name for name in category_names
-                if re.search(rf"(?<!\w){re.escape(name)}(?!\w)", question, re.IGNORECASE)
+                if re.search(rf"(?<!\w){re.escape(name)}(?!\w)", search_query, re.IGNORECASE)
             ]
             if mentioned:
                 category_docs = list(
@@ -285,6 +310,19 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
                     ))
                 logger.info("Question mentions categories %s: added %d emails", mentioned, len(category_docs))
             seen_ids = {d["messageId"] for d in context_emails}
+
+            # Emails the previous answer was based on stay in context, so
+            # "it" / "that one" / "the second one" still refer to them.
+            carry = [i for i in carry_over_ids if i not in seen_ids][:MAX_CARRY_OVER]
+            if carry:
+                carried = {d["messageId"]: d for d in coll.find({"messageId": {"$in": carry}, "userEmail": user_email})}
+                for mid in carry:
+                    if mid in carried:
+                        context_emails.append(carried[mid])
+                        seen_ids.add(mid)
+                        sources.append(search_pb2.SourceEmail(
+                            message_id=mid, subject=carried[mid].get("subject", ""), score=0.5
+                        ))
 
             for r in response.results:
                 if r.email_id in seen_ids:
@@ -307,7 +345,7 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
             meta: dict = {}
             t_llm = time.perf_counter()
             first_token_ms = None
-            for chunk_text in stream_answer(question, context_emails, meta):
+            for chunk_text in stream_answer(question, context_emails, meta, history=history):
                 if first_token_ms is None:
                     first_token_ms = (time.perf_counter() - t_llm) * 1000
                 yield search_pb2.AskResponseChunk(text_delta=chunk_text, is_final=False)
