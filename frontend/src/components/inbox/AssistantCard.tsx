@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AssistantIcon, getStoredUser, goTo } from "../NavRail.tsx";
 import { createChatSession, streamAnswer } from "../../utils/askStream.ts";
+import Markdown from "../Markdown.tsx";
 import type { InboxEmail } from "./InboxCard.tsx";
 
 interface Turn { id: number; role: "user" | "ai"; content: string; streaming?: boolean }
@@ -103,10 +104,16 @@ export default function AssistantCard({ latest, deadlines }: { latest: InboxEmai
                   <AssistantIcon size={14} />
                 </span>
               )}
-              <p className={`text-[13px] leading-[20px] whitespace-pre-wrap rounded-[18px] px-[14px] py-[10px] ${m.role === "user" ? "bg-white text-black" : "bg-white/10 text-[#e5e7eb]"}`}>
-                {m.content || (m.streaming ? "…" : "")}
-                {m.streaming && m.content && <span className="inline-block w-[2px] h-[12px] bg-[#e5e7eb] ml-[2px] align-middle animate-pulse" />}
-              </p>
+              {m.role === "ai" && m.content ? (
+                <div className="text-[13px] leading-[20px] rounded-[18px] px-[14px] py-[10px] bg-white/10 text-[#e5e7eb]">
+                  <Markdown text={m.content} className="md-dark" />
+                  {m.streaming && <span className="inline-block w-[2px] h-[12px] bg-[#e5e7eb] ml-[2px] align-middle animate-pulse" />}
+                </div>
+              ) : (
+                <p className={`text-[13px] leading-[20px] whitespace-pre-wrap rounded-[18px] px-[14px] py-[10px] ${m.role === "user" ? "bg-white text-black" : "bg-white/10 text-[#e5e7eb]"}`}>
+                  {m.content || (m.streaming ? "…" : "")}
+                </p>
+              )}
             </div>
           ))
         )}

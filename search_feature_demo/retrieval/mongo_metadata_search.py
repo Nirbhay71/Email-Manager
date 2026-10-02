@@ -20,6 +20,7 @@ defined in ``backend/src/models/email.model.js``:
 from __future__ import annotations
 
 import logging
+import re
 import time
 from datetime import datetime
 
@@ -93,7 +94,13 @@ def search_metadata(
     if query.date_range.before:
         date_filter["$lte"] = query.date_range.before
     if date_filter:
-        mongo_filter["createdAt"] = date_filter
+        # receivedAt is Gmail's own date; createdAt is only when MailSense
+        # stored the email (identical for a whole backfill), so it's just the
+        # fallback for records saved before receivedAt existed.
+        mongo_filter.setdefault("$and", []).append({"$or": [
+            {"receivedAt": date_filter},
+            {"receivedAt": None, "createdAt": date_filter},
+        ]})
 
     # Subject keyword filter (from subject: operator)
     if query.subject_filter:
@@ -102,12 +109,11 @@ def search_metadata(
             "$options": "i",
         }
 
-    # Folder / label filters — stored as fields if present in schema
-    if query.folder:
-        mongo_filter["folder"] = {"$regex": query.folder, "$options": "i"}
-
-    if query.label:
-        mongo_filter["label"] = {"$regex": query.label, "$options": "i"}
+    # label:/category:/in: operators all mean the user's own categories,
+    # which the backend stores in the `category` field (exact name, any case).
+    category = query.label or query.folder
+    if category:
+        mongo_filter["category"] = {"$regex": f"^{re.escape(category)}$", "$options": "i"}
 
     # Projection: lightweight, no body
     projection = {

@@ -11,6 +11,7 @@ from __future__ import annotations
 import hmac
 import logging
 import os
+import re
 import sys
 import time
 from concurrent import futures
@@ -65,6 +66,10 @@ _ensure_generated()
 
 import search_pb2
 import search_pb2_grpc
+
+
+# Emails loaded when a question names a category (newest first).
+MAX_CATEGORY_CONTEXT = int(os.getenv("CHAT_MAX_CATEGORY_EMAILS", "10"))
 
 
 class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
@@ -245,7 +250,7 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
 
             # 2. Load the matched emails' content in one query (was one
             #    find_one per result), preserving the ranking order.
-            yield search_pb2.AskResponseChunk(stage=f"reading:{len(response.results)}")
+            yield search_pb2.AskResponseChunk(stage="reading:0")
             t0 = time.perf_counter()
             from retrieval.mongo_metadata_search import _get_collection
             ids = [r.email_id for r in response.results]
@@ -255,7 +260,35 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
             } if ids else {}
             context_emails = []
             sources = []
+
+            # Questions naming one of the user's categories ("tell me about my
+            # DSA mails") need that category's emails, which text similarity
+            # alone won't reliably find — the label isn't part of the email text.
+            coll = _get_collection()
+            category_names = [
+                c["name"] for c in coll.database["categories"].find({"userEmail": user_email}, {"name": 1})
+            ]
+            mentioned = [
+                name for name in category_names
+                if re.search(rf"(?<!\w){re.escape(name)}(?!\w)", question, re.IGNORECASE)
+            ]
+            if mentioned:
+                category_docs = list(
+                    coll.find({"userEmail": user_email, "category": {"$in": mentioned}})
+                    .sort([("receivedAt", -1), ("createdAt", -1)])
+                    .limit(MAX_CATEGORY_CONTEXT)
+                )
+                for doc in category_docs:
+                    context_emails.append(doc)
+                    sources.append(search_pb2.SourceEmail(
+                        message_id=doc["messageId"], subject=doc.get("subject", ""), score=1.0
+                    ))
+                logger.info("Question mentions categories %s: added %d emails", mentioned, len(category_docs))
+            seen_ids = {d["messageId"] for d in context_emails}
+
             for r in response.results:
+                if r.email_id in seen_ids:
+                    continue
                 doc = docs.get(r.email_id)
                 if doc:
                     context_emails.append(doc)
@@ -265,6 +298,7 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
                         score=float(r.scores.final)
                     ))
             timings["context_ms"] = (time.perf_counter() - t0) * 1000
+            yield search_pb2.AskResponseChunk(stage=f"reading:{len(context_emails)}")
             logger.info("Found %d emails for context.", len(context_emails))
 
             # 3. Stream Gemini's answer.

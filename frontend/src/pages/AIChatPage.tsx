@@ -4,6 +4,7 @@ import imgUserAvatar from "../imports/Html→Body-2/3d16bb95b2a6f2c06c620b3e84b1
 import { apiFetch } from "../utils/api.ts";
 import { useWeather, type WeatherData } from "../utils/weather.ts";
 import NavRail, { Avatar, AssistantIcon, getStoredUser } from "../components/NavRail.tsx";
+import Markdown from "../components/Markdown.tsx";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -339,12 +340,12 @@ function ChatWorkspace({ userEmail, messages, setMessages, isStreaming, setIsStr
                   {msg.streaming && !msg.content ? (
                     <ProgressIndicator stage={msg.stage ?? "connecting"} startedAt={msg.timestamp.getTime()} />
                   ) : (
-                    <p className="font-['Inter:Regular',sans-serif] font-normal text-[#374151] text-[14px] leading-[22px] whitespace-pre-wrap">
-                      {msg.content}
+                    <div className="font-['Inter:Regular',sans-serif] font-normal text-[#374151] text-[14px] leading-[22px]">
+                      <Markdown text={msg.content} />
                       {msg.streaming && (
                         <span className="inline-block w-[2px] h-[14px] bg-[#374151] ml-[2px] align-middle animate-pulse" />
                       )}
-                    </p>
+                    </div>
                   )}
                   {!msg.streaming && (
                     <p className="font-['Inter:Bold',sans-serif] font-bold text-[#9ca3af] text-[10px] uppercase leading-[15px] mt-[12px]">
