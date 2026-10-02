@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "../../utils/api.ts";
+import { refreshCategories, useCategories } from "../../utils/categories.ts";
+import EmailBody from "./EmailBody.tsx";
 
 export interface InboxEmail {
   id: string;
@@ -99,7 +101,8 @@ export default function InboxCard({ onLatest, pageSize = DEFAULT_PAGE_SIZE }: {
   const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
   const [categorizingIds, setCategorizingIds] = useState<Set<string>>(new Set());
   const [actionError, setActionError] = useState("");
-  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  // Shared with CategoriesCard — a category added there appears here immediately.
+  const { categories } = useCategories();
 
   // Open-mail modal
   const [openEmailId, setOpenEmailId] = useState<string | null>(null);
@@ -157,20 +160,6 @@ export default function InboxCard({ onLatest, pageSize = DEFAULT_PAGE_SIZE }: {
     return () => controller.abort();
   }, [openEmailId]);
 
-  // The user's categories, for the inline categorize picker — fetched once,
-  // independent of CategoriesCard's own fetch elsewhere on the dashboard.
-  useEffect(() => {
-    const controller = new AbortController();
-    apiFetch("/categories", { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const json = await res.json();
-        setCategories((json.categories ?? []).map((c: CategoryOption) => ({ id: c.id, name: c.name })));
-      })
-      .catch(() => { /* picker just stays empty */ });
-    return () => controller.abort();
-  }, []);
-
   const handleAddEvent = useCallback(async (target: { id: string }) => {
     setAddingIds((prev) => new Set(prev).add(target.id));
     setActionError("");
@@ -221,6 +210,9 @@ export default function InboxCard({ onLatest, pageSize = DEFAULT_PAGE_SIZE }: {
         emails: prev.emails.map((e) => e.id === target.id ? { ...e, category: json.category, needsReview: json.needsReview } : e),
       } : prev);
       setDetail((prev) => prev && prev.id === target.id ? { ...prev, category: json.category, needsReview: json.needsReview } : prev);
+      // Labeling/confirming adds a training example — update the counts
+      // ("2/15 examples") shown in CategoriesCard.
+      void refreshCategories();
     } catch (e) {
       setActionError((e as Error).message || "Unable to set category.");
     } finally {
@@ -409,7 +401,7 @@ export default function InboxCard({ onLatest, pageSize = DEFAULT_PAGE_SIZE }: {
           onClick={() => setOpenEmailId(null)}
         >
           <div
-            className="bg-white rounded-[24px] shadow-xl w-full max-w-[560px] max-h-[80vh] flex flex-col overflow-hidden"
+            className="bg-white rounded-[24px] shadow-xl w-full max-w-[760px] max-h-[85vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-[12px] p-[20px] border-b border-[#f3f4f6] shrink-0">
@@ -478,7 +470,7 @@ export default function InboxCard({ onLatest, pageSize = DEFAULT_PAGE_SIZE }: {
                       </div>
                     </div>
                   )}
-                  <p className="text-[13px] text-[#374151] whitespace-pre-wrap leading-[20px]">{detail.body}</p>
+                  <EmailBody emailId={detail.id} fallbackText={detail.body} />
                 </>
               ) : null}
             </div>

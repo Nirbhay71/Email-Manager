@@ -1,59 +1,29 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { apiFetch } from "../../utils/api.ts";
-
-interface Category {
-  id: string;
-  name: string;
-  createdAt: string;
-  count: number;
-  autoClassifyEnabled: boolean;
-  examplesNeeded: number;
-}
-
-// Must be kept in sync with MIN_EXAMPLES_PER_CATEGORY in classifier-service/.env.
-const DEFAULT_EXAMPLES_NEEDED = 15;
+import { useState, type FormEvent } from "react";
+import { addCategory, useCategories } from "../../utils/categories.ts";
 
 export default function CategoriesCard() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // Shared with InboxCard's categorize picker, so counts and new categories
+  // show up in both without a page refresh.
+  const { categories, loaded, error: loadError } = useCategories();
+  const loading = !loaded && !loadError;
+  const [formError, setFormError] = useState("");
+  const error = formError || loadError;
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    (async () => {
-      try {
-        const res = await apiFetch("/categories", { signal: controller.signal });
-        if (!res.ok) throw new Error(String(res.status));
-        setCategories((await res.json()).categories ?? []);
-      } catch (e) {
-        if ((e as Error).name !== "AbortError") setError("Unable to load categories.");
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    })();
-    return () => controller.abort();
-  }, []);
 
   const create = async (e: FormEvent) => {
     e.preventDefault();
     const value = name.trim();
     if (!value || saving) return;
     setSaving(true);
-    setError("");
+    setFormError("");
     try {
-      const res = await apiFetch("/categories", { method: "POST", body: JSON.stringify({ name: value }) });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Could not add category");
-      // A brand-new category has no examples yet — the create endpoint doesn't
-      // round-trip through the classifier, so fill these in ourselves.
-      setCategories((prev) => [{ ...json.category, count: 0, autoClassifyEnabled: false, examplesNeeded: DEFAULT_EXAMPLES_NEEDED }, ...prev]);
+      await addCategory(value);
       setName("");
       setAdding(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add category");
+      setFormError(err instanceof Error ? err.message : "Could not add category");
     } finally {
       setSaving(false);
     }
@@ -64,7 +34,7 @@ export default function CategoriesCard() {
       <div className="flex items-center justify-between shrink-0">
         <h2 className="font-['Inter:Bold',sans-serif] font-bold text-[20px] text-black leading-[28px]">Categories</h2>
         <button
-          onClick={() => { setAdding(!adding); setError(""); }}
+          onClick={() => { setAdding(!adding); setFormError(""); }}
           aria-label={adding ? "Cancel" : "Add category"}
           className="w-[32px] h-[32px] rounded-full bg-black text-white text-[18px] leading-none flex items-center justify-center hover:opacity-80 transition"
           type="button"

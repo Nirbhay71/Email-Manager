@@ -4,6 +4,7 @@ import { Category } from "../models/category.model.js";
 import { createDeadlineEvent, deleteDeadlineEvent } from "../service/calendar.service.js";
 import { storeManualLabel, recordFeedback } from "../grpc/classifierClient.js";
 import { flagIfReauthNeeded } from "../service/ingest.service.js";
+import { getMessageContent } from "../service/gmail.service.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -284,5 +285,46 @@ export const setEmailCategory = async (req, res) => {
         if (error.name === "CastError") return res.status(404).json({ error: "Email not found" });
         console.error("[emails] set category error:", error);
         res.status(500).json({ error: "Unable to set category" });
+    }
+};
+
+/**
+ * GET /emails/:id/content — the email as the sender formatted it: its HTML
+ * part (inline images embedded) plus a readable text fallback. Fetched live
+ * from Gmail on open so it works for every stored email; the HTML is
+ * sanitized and sandboxed client-side before display.
+ */
+const MAX_CACHED_HTML_CHARS = 4 * 1024 * 1024;
+
+export const getEmailContent = async (req, res) => {
+    try {
+        const userEmail = req.user.email;
+        const email = await Email.findOne({ _id: req.params.id, userEmail }).select("messageId body +bodyHtml").lean();
+        if (!email) return res.status(404).json({ error: "Email not found" });
+        if (email.bodyHtml) return res.json({ html: email.bodyHtml, text: email.body || "" });
+
+        const user = await User.findOne({ email: userEmail }).select("email tokens");
+        const tokens = user?.tokensPlain;
+        if (!tokens) return res.json({ html: null, text: email.body || "" });
+
+        try {
+            const content = await getMessageContent(tokens, email.messageId);
+            // Cache for next time (skip huge ones — Mongo documents cap at 16MB).
+            if (content.html && content.html.length < MAX_CACHED_HTML_CHARS) {
+                await Email.updateOne({ _id: email._id }, { $set: { bodyHtml: content.html } });
+            }
+            res.json({ html: content.html || null, text: content.text || email.body || "" });
+        } catch (gmailErr) {
+            if (await flagIfReauthNeeded(userEmail, gmailErr)) {
+                return res.status(401).json({ error: "Google access expired — please sign in again", code: "GOOGLE_REAUTH_REQUIRED" });
+            }
+            // Deleted in Gmail, network hiccup, ... — fall back to the stored text.
+            console.warn("[emails] live content fetch failed:", gmailErr.message);
+            res.json({ html: null, text: email.body || "" });
+        }
+    } catch (error) {
+        if (error.name === "CastError") return res.status(404).json({ error: "Email not found" });
+        console.error("[emails] content error:", error);
+        res.status(500).json({ error: "Internal server error" });
     }
 };

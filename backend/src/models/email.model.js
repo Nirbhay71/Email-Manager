@@ -32,6 +32,14 @@ const emailSchema = new mongoose.Schema({
         type: Date,
         default: null
     },
+    // The sender's HTML (inline images embedded), cached the first time the
+    // email is opened — Gmail takes 1-6s per fetch. Excluded from normal
+    // queries so inbox listings stay small.
+    bodyHtml: {
+        type: String,
+        default: null,
+        select: false
+    },
     detectedDate: {
         type: String,
         default: null

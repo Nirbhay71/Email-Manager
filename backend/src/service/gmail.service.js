@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { convert } from "html-to-text";
 import { getOAuthClient } from "../config/google.config.js";
 
 function gmailClient(tokens){
@@ -95,11 +96,11 @@ export async function getMessage(tokens, messageId) {
         id: messageId,
         format: "full"
     });
-    
+
     const headers = res.data.payload.headers || [];
     const subject = headers.find((h)=> h.name === "Subject")?.value || "";
     const from = headers.find((h)=> h.name === "From")?.value || "";
-    const body = extractPlainText(res.data.payload);
+    const body = extractReadableText(res.data.payload);
     // Gmail's own receipt timestamp — used as the reference point for
     // relative dates ("tomorrow") found in the email, so they resolve
     // against when the email was sent, not whenever this is processed.
@@ -107,15 +108,88 @@ export async function getMessage(tokens, messageId) {
     return {id: messageId, subject, from, body, receivedAt};
 }
 
-function extractPlainText(payload){
-    if (payload.mimeType === "text/plain" && payload.body?.data) {
-        return Buffer.from(payload.body.data, "base64").toString("utf-8");
-    }
-    if (payload.parts) {
-        for (const part of payload.parts) {
-            const text = extractPlainText(part);
-            if (text) return text;
+// Inline images above this size are left out rather than bloating the response.
+const MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Everything needed to display one email: its HTML part (with inline
+ * `cid:` images embedded as data: URIs) and a readable plain-text version.
+ * Fetched live from Gmail when the user opens an email, so it works for
+ * mail stored before HTML was kept, and nothing extra is persisted.
+ */
+export async function getMessageContent(tokens, messageId) {
+    const gmail = gmailClient(tokens);
+    const res = await gmail.users.messages.get({ userId: "me", id: messageId, format: "full" });
+    const payload = res.data.payload;
+
+    let html = findPart(payload, "text/html");
+    const text = extractReadableText(payload);
+
+    if (html) {
+        // Inline images: <img src="cid:abc"> refers to a MIME part with Content-ID <abc>.
+        const inlineParts = collectParts(payload).filter((p) => p.body?.attachmentId && headerOf(p, "Content-ID"));
+        for (const part of inlineParts) {
+            const cid = headerOf(part, "Content-ID").replace(/^<|>$/g, "");
+            if (!html.includes(`cid:${cid}`) || (part.body.size || 0) > MAX_INLINE_IMAGE_BYTES) continue;
+            try {
+                const att = await gmail.users.messages.attachments.get({
+                    userId: "me", messageId, id: part.body.attachmentId
+                });
+                const b64 = Buffer.from(att.data.data, "base64url").toString("base64");
+                html = html.split(`cid:${cid}`).join(`data:${part.mimeType};base64,${b64}`);
+            } catch (err) {
+                console.warn(`[gmail] inline image fetch failed: ${err.message}`);
+            }
         }
     }
-    return "";
+
+    return { html, text };
+}
+
+function collectParts(payload, out = []) {
+    out.push(payload);
+    for (const part of payload.parts || []) collectParts(part, out);
+    return out;
+}
+
+function headerOf(part, name) {
+    return (part.headers || []).find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+}
+
+function findPart(payload, mimeType) {
+    const part = collectParts(payload).find((p) => p.mimeType === mimeType && p.body?.data);
+    return part ? Buffer.from(part.body.data, "base64url").toString("utf-8") : "";
+}
+
+/**
+ * Plain text for storage, search and the AI: the text/plain part when the
+ * sender provided a usable one, otherwise text converted from the HTML part.
+ * Some senders put raw CSS (`@media{...}`) at the top of their text/plain
+ * part; that is stripped too.
+ */
+function extractReadableText(payload) {
+    const plain = stripLeadingCss(findPart(payload, "text/plain"));
+    if (plain.trim()) return plain;
+    const html = findPart(payload, "text/html");
+    return html ? htmlToPlainText(html) : "";
+}
+
+function stripLeadingCss(text) {
+    // Drop leading lines that are clearly CSS rules, e.g. "@media{...}" or "div.x{padding:0}".
+    const lines = text.split(/\r?\n/);
+    let i = 0;
+    while (i < lines.length && /^\s*(@media|@font-face|@import|[.#a-z][\w.#\s,:>-]*\{)[^]*[{};]\s*$/i.test(lines[i])) i++;
+    return lines.slice(i).join("\n");
+}
+
+export function htmlToPlainText(html) {
+    return convert(html, {
+        wordwrap: false,
+        selectors: [
+            { selector: "img", format: "skip" },
+            { selector: "a", options: { hideLinkHrefIfSameAsText: true, ignoreHref: false } },
+            { selector: "style", format: "skip" },
+            { selector: "script", format: "skip" }
+        ]
+    }).trim();
 }
