@@ -42,6 +42,14 @@ const UserSchema = new mongoose.Schema({
         enum: ["pending", "running", "done", "failed"],
         default: "pending"
     },
+    // Money & tax assistant settings. lastBriefAt keeps jobs/moneyBrief.job.js
+    // to one brief per day.
+    financeProfile: {
+        taxRegime: { type: String, enum: ["new", "old"], default: null },
+        employerProofDeadline: { type: Date, default: null },
+        briefEnabled: { type: Boolean, default: true },
+        lastBriefAt: { type: Date, default: null }
+    },
     // Opaque refresh tokens for our own JWT auth (rotating token strategy).
     // `token` stores a SHA-256 hash of the value handed to the client, never the raw value.
     // `usedAt` is set the moment a token is redeemed; a second redemption of an

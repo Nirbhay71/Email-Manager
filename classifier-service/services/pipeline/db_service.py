@@ -102,3 +102,6 @@ def update_email_category(user_email: str, email_id: str, category_name: str) ->
         {"userEmail": user_email, "messageId": email_id},
         {"$set": {"category": category_name}}
     )
+
+def get_finance_col():
+    return get_db()["financeitems"]

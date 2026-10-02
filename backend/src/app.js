@@ -12,6 +12,7 @@ import emailRoutes from "./routes/email.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
 import calendarRoutes from "./routes/calendar.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
+import financeRoutes from "./routes/finance.routes.js";
 import { requireAuth } from "./middleware/auth.middleware.js";
 
 const app = express();
@@ -77,6 +78,7 @@ app.use("/emails", requireAuth, emailRoutes);
 app.use("/categories", requireAuth, categoryRoutes);
 app.use("/calendar", requireAuth, calendarRoutes);
 app.use("/chat", requireAuth, chatRoutes);
+app.use("/finance", requireAuth, financeRoutes);
 
 // ─── 404 + error handlers (must stay last) ────────────────────────────────────
 app.use((req, res) => {

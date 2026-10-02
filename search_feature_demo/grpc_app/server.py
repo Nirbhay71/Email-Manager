@@ -79,6 +79,14 @@ _FOLLOW_UP = re.compile(
 )
 
 
+# Questions that ask for an overview across many emails.
+_LIST_INTENT = re.compile(
+    r"\b(list|all|every|each|how many|which (companies|ones|emails|mails)|summari[sz]e (all|my|every)|overview)\b",
+    re.IGNORECASE,
+)
+LIST_TOP_K = int(os.getenv("CHAT_LIST_TOP_K", "15"))
+
+
 def _is_follow_up(question: str) -> bool:
     return len(question.split()) <= 6 or bool(_FOLLOW_UP.search(question))
 
@@ -227,6 +235,9 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
         search_query = question
         if previous_question and _is_follow_up(question):
             search_query = f"{previous_question} {question}"
+        # "List all the companies I applied to" spans many emails — 5 can't cover it.
+        if _LIST_INTENT.search(question):
+            top_k = max(top_k, LIST_TOP_K)
         try:
             logger.info("AskQuestion received (top_k=%d, history=%d turns, follow_up=%s)",
                         top_k, len(history), search_query != question)
@@ -309,6 +320,16 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
                         message_id=doc["messageId"], subject=doc.get("subject", ""), score=1.0
                     ))
                 logger.info("Question mentions categories %s: added %d emails", mentioned, len(category_docs))
+            # Questions whose answer lives in recognisable wording (e.g. replies
+            # to job applications) — fetch those directly; see retrieval/intent_boost.py.
+            from retrieval.intent_boost import boosted_emails
+            for doc in boosted_emails(coll, user_email, search_query):
+                if doc["messageId"] not in {d["messageId"] for d in context_emails}:
+                    context_emails.append(doc)
+                    sources.append(search_pb2.SourceEmail(
+                        message_id=doc["messageId"], subject=doc.get("subject", ""), score=1.0
+                    ))
+
             seen_ids = {d["messageId"] for d in context_emails}
 
             # Emails the previous answer was based on stay in context, so
@@ -335,6 +356,19 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
                         subject=r.subject,
                         score=float(r.scores.final)
                     ))
+            # Money questions also get the structured records extracted from
+            # the user's finance emails (see retrieval/finance_context.py).
+            from retrieval.finance_context import is_money_question, load_finance_records
+            finance_text = ""
+            if is_money_question(search_query):
+                finance_text, finance_sources = load_finance_records(coll.database, user_email)
+                for src in finance_sources:
+                    if src["message_id"] not in seen_ids:
+                        seen_ids.add(src["message_id"])
+                        sources.append(search_pb2.SourceEmail(
+                            message_id=src["message_id"], subject=src["subject"], score=1.0
+                        ))
+                logger.info("Money question: added %d finance record line(s)", finance_text.count("\n- "))
             timings["context_ms"] = (time.perf_counter() - t0) * 1000
             yield search_pb2.AskResponseChunk(stage=f"reading:{len(context_emails)}")
             logger.info("Found %d emails for context.", len(context_emails))
@@ -345,7 +379,7 @@ class SearchServiceServicer(search_pb2_grpc.SearchServiceServicer):
             meta: dict = {}
             t_llm = time.perf_counter()
             first_token_ms = None
-            for chunk_text in stream_answer(question, context_emails, meta, history=history):
+            for chunk_text in stream_answer(question, context_emails, meta, history=history, finance_text=finance_text):
                 if first_token_ms is None:
                     first_token_ms = (time.perf_counter() - t_llm) * 1000
                 yield search_pb2.AskResponseChunk(text_delta=chunk_text, is_final=False)

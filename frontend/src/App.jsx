@@ -3,6 +3,7 @@ import GeneratedLoginPage from './pages/LoginPage.tsx'
 import InboxPage from './pages/InboxPage.tsx'
 import MailPage from './pages/MailPage.tsx'
 import AIChatPage from './pages/AIChatPage.tsx'
+import MoneyPage from './pages/MoneyPage.tsx'
 import ProfilePage from './pages/ProfilePage.tsx'
 import LegalPage from './pages/LegalPage.tsx'
 import { apiFetch, BACKEND, GOOGLE_REAUTH_EVENT } from './utils/api.ts'
@@ -86,6 +87,7 @@ function DashboardRoute({ pathname, needsReauth, syncing }) {
   let Page = InboxPage
   if (pathname === '/mail') Page = MailPage
   if (pathname === '/ai-chat') Page = AIChatPage
+  if (pathname === '/money') Page = MoneyPage
   if (pathname === '/profile') Page = ProfilePage
 
   return (

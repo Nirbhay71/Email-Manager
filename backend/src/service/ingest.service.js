@@ -11,7 +11,8 @@ import { extractDate } from "./dateExtractor.service.js";
 import { sendTestSms } from "./sms.service.js";
 import { embedAndStoreEmail } from "./embeddingClient.js";
 import { classifyEmail } from "../grpc/classifierClient.js";
-import { enqueueClassification } from "./classifyQueue.js";
+import { enqueueClassification, enqueueFinanceExtraction } from "./classifyQueue.js";
+import { isFinanceCandidate } from "./financeFilter.service.js";
 
 const BACKFILL_MAX_MESSAGES = Number(process.env.BACKFILL_MAX_MESSAGES) || 200;
 const BACKFILL_NEWER_THAN_DAYS = Number(process.env.BACKFILL_NEWER_THAN_DAYS) || 30;
@@ -107,6 +108,17 @@ export async function ingestMessage({ userEmail, tokens, messageId, hasCategorie
         } catch (queueErr) {
             console.warn(`[ingest] classify queue unavailable (${queueErr.message}) — classifying directly`);
             await classifyDirectly(userEmail, messageId, msg);
+        }
+    }
+
+    // Money-related mail is queued for structured extraction regardless of
+    // categories. No direct fallback: scripts/reprocess-finance.js re-queues
+    // anything missed while Redis was down.
+    if (isFinanceCandidate(msg)) {
+        try {
+            await enqueueFinanceExtraction(userEmail, messageId);
+        } catch (queueErr) {
+            console.warn(`[ingest] finance queue unavailable (${queueErr.message}) — skipped ${messageId}`);
         }
     }
 

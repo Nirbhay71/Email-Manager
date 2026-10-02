@@ -3,6 +3,8 @@ import { createClient } from "redis";
 // classifier-service's ClassifyWorker consumes this stream in batches and
 // writes results straight to the emails collection.
 const STREAM = process.env.CLASSIFY_STREAM || "mailsense:classify";
+// classifier-service's FinanceWorker consumes this one and writes financeitems.
+const FINANCE_STREAM = process.env.FINANCE_STREAM || "mailsense:finance";
 // Bound the stream so a classifier outage can't grow Redis without limit.
 const MAX_STREAM_LENGTH = 100000;
 const FIRST_CONNECT_TIMEOUT_MS = 3000;
@@ -29,11 +31,10 @@ function getClient() {
 }
 
 /**
- * Queue an email for background classification.
  * Throws (within a few seconds at most) if Redis is unreachable, so the
  * caller can fall back instead of stalling ingestion.
  */
-export async function enqueueClassification(userEmail, messageId) {
+async function enqueue(stream, userEmail, messageId) {
     const redis = getClient();
     if (!redis.isReady && !waitedForFirstConnect) {
         // Only the first call waits for the initial connection; afterwards a
@@ -43,11 +44,21 @@ export async function enqueueClassification(userEmail, messageId) {
     }
     if (!redis.isReady) throw new Error("Redis not connected");
     await redis.xAdd(
-        STREAM,
+        stream,
         "*",
         { user_email: userEmail, message_id: messageId },
         { TRIM: { strategy: "MAXLEN", strategyModifier: "~", threshold: MAX_STREAM_LENGTH } }
     );
+}
+
+/** Queue an email for background classification. */
+export function enqueueClassification(userEmail, messageId) {
+    return enqueue(STREAM, userEmail, messageId);
+}
+
+/** Queue a likely money-related email for background finance extraction. */
+export function enqueueFinanceExtraction(userEmail, messageId) {
+    return enqueue(FINANCE_STREAM, userEmail, messageId);
 }
 
 export async function closeClassifyQueue() {

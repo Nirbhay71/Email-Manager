@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import svgPaths from "../imports/Html→Body-2/svg-9eyoj0uxqg";
 import imgUser from "../imports/Html→Body-2/4a1497f7eb1ac52188d5053d788a4d72df0d0413.png";
 
-export type NavKey = "inbox" | "mail" | "management" | "ai-chat" | "profile";
+export type NavKey = "inbox" | "mail" | "management" | "ai-chat" | "money" | "profile";
 
 export function getStoredUser(): { email?: string; avatar?: string; name?: string } {
   if (typeof window === "undefined") return {};
@@ -42,6 +42,14 @@ function MailIcon() {
     <svg {...svgProps}>
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <path d="m3 7 9 6 9-6" />
+    </svg>
+  );
+}
+
+function MoneyIcon() {
+  return (
+    <svg {...svgProps}>
+      <path d="M6 3h12M6 8h12M6 13l8.5 8M6 13h3a5 5 0 0 0 0-10" />
     </svg>
   );
 }
@@ -93,6 +101,7 @@ export default function NavRail({ active, reserve = true }: { active: NavKey; re
             <NavButton active={active === "mail"} to="/mail" label="All mail"><MailIcon /></NavButton>
             {/* "Calendar" nav entry hidden until ManagementPage is a real calendar view —
                 today it renders an unrelated placeholder import and would look broken. */}
+            <NavButton active={active === "money"} to="/money" label="Money"><MoneyIcon /></NavButton>
             <NavButton active={active === "ai-chat"} to="/ai-chat" label="AI assistant"><AssistantIcon /></NavButton>
           </div>
         </div>

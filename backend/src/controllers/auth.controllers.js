@@ -5,6 +5,7 @@ import { User } from "../models/user.model.js";
 import { Email } from "../models/email.model.js";
 import { Category } from "../models/category.model.js";
 import { ChatSession } from "../models/chatSession.model.js";
+import { FinanceItem } from "../models/financeItem.model.js";
 import { startWatch, stopWatch } from "../service/gmail.service.js";
 import {
     runExclusive,
@@ -317,7 +318,8 @@ export const deleteAccount = async (req, res) => {
             await Promise.all([
                 Email.deleteMany({ userEmail: email }),
                 Category.deleteMany({ userEmail: email }),
-                ChatSession.deleteMany({ userEmail: email })
+                ChatSession.deleteMany({ userEmail: email }),
+                FinanceItem.deleteMany({ userEmail: email })
             ]);
             await User.deleteOne({ _id: user._id });
         });

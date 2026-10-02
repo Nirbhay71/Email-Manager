@@ -66,6 +66,7 @@ from services.pipeline.summary_generator import GeminiSummaryGenerator
 from services.pipeline.reasoning_engine import GeminiReasoningEngine
 from services.pipeline.orchestrator import ClassificationOrchestrator
 from services.classify_worker import ClassifyWorker
+from services.finance_worker import FinanceWorker
 
 # --- Tunables --------------------------------------------------------------
 MIN_EXAMPLES = int(os.getenv("MIN_EXAMPLES_PER_CATEGORY", "15"))
@@ -309,12 +310,16 @@ def serve():
     # rate-limited so a burst of mail doesn't exhaust the Gemini quota.
     worker = ClassifyWorker(orchestrator, embedder, chroma_store, MIN_EXAMPLES)
     worker.start()
+    # Turns money-related mail (flagged by the backend prefilter) into financeitems.
+    finance_worker = FinanceWorker()
+    finance_worker.start()
     try:
         while True:
             time.sleep(86400)
     except KeyboardInterrupt:
         logger.info("Shutting down gRPC server...")
         worker.stop()
+        finance_worker.stop()
         server.stop(grace=5)
 
 
